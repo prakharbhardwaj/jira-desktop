@@ -85,6 +85,7 @@ The repository includes a GitHub Actions workflow at `.github/workflows/release.
 - Push a tag such as `v1.0.1` to build macOS and Windows artifacts and publish a GitHub Release
 - The tag must match the `version` field in `package.json`
 - You can also run the workflow manually and optionally provide an existing release tag
+- The CI workflow publishes a macOS `.zip` build for reliability on GitHub-hosted macOS runners; local `yarn release-mac` still builds both `.zip` and `.dmg`
 
 ## Open Source Notes
 

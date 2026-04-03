@@ -11,7 +11,8 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "release-win": "electron-builder --config.asar=true --config.compression=maximum --win --publish never",
-    "release-mac": "electron-builder --config.asar=true --config.compression=maximum --mac --publish never"
+    "release-mac": "electron-builder --config.asar=true --config.compression=maximum --mac --publish never",
+    "release-mac-ci": "electron-builder --config.asar=true --config.compression=maximum --mac zip --publish never"
   },
   "keywords": [
     "electron",

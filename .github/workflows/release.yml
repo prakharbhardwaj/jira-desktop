@@ -28,7 +28,7 @@ jobs:
         include:
           - os: macos-14
             platform: macOS
-            build_command: yarn release-mac
+            build_command: yarn release-mac-ci
             artifact_name: macos-builds
           - os: windows-latest
             platform: Windows
