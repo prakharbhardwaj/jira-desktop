@@ -1,9 +1,10 @@
 {
-  "name": "my-jira-client",
-  "productName": "Jira",
+  "name": "jira-desktop",
+  "productName": "Jira Desktop",
   "version": "1.0.0",
-  "description": "Electron wrapper for Jira",
+  "description": "A minimal Electron desktop client for Jira.",
   "main": "main.js",
+  "private": true,
   "scripts": {
     "start": "electron .",
     "test:smoke": "node tests/smoke.js",
@@ -12,14 +13,16 @@
     "release-win": "electron-builder --config.asar=true --config.compression=maximum --win --publish never",
     "release-mac": "electron-builder --config.asar=true --config.compression=maximum --mac --publish never"
   },
-  "repository": "https://github.com/electron/electron-quick-start",
   "keywords": [
-    "Electron",
-    "jira client",
-    "jira"
+    "electron",
+    "jira",
+    "desktop"
   ],
   "author": "Prakhar Prakash Bhardwaj",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "devDependencies": {
     "electron": "^41.1.1",
     "electron-builder": "^26.8.1",

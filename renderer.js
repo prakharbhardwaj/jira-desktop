@@ -12,6 +12,7 @@ const sidebarTrigger = document.getElementById("sidebar-trigger");
 
 let currentState = {
   activeTabId: null,
+  startupError: "",
   tabs: []
 };
 
@@ -93,6 +94,17 @@ function renderTabs(state) {
 }
 
 function renderOverlay(state) {
+  if (state.startupError) {
+    statusLayerElement.hidden = false;
+    titleElement.textContent = "Configure Jira URL";
+    messageElement.textContent = state.startupError;
+    targetUrlElement.textContent = "";
+    progressBar.hidden = true;
+    retryButton.hidden = true;
+    document.body.dataset.view = "error";
+    return;
+  }
+
   const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId);
 
   if (!activeTab) {

@@ -2,7 +2,6 @@ const { app, BrowserView, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const { pathToFileURL } = require("url");
 
-const DEFAULT_JIRA_URL = "https://c20y.atlassian.net";
 const DEFAULT_ALLOWED_HOST_SUFFIXES = [".atlassian.net", ".atlassian.com", ".jira.com"];
 const SIDEBAR_WIDTH = 220;
 const SIDEBAR_TRIGGER_WIDTH = 6;
@@ -38,22 +37,38 @@ function normalizeUrl(rawUrl) {
 }
 
 function createConfig() {
-  const jiraUrl = normalizeUrl(getCliArgument("--jira-url") || process.env.JIRA_URL || DEFAULT_JIRA_URL);
+  const rawJiraUrl = (getCliArgument("--jira-url") || process.env.JIRA_URL || "").trim();
   const extraAllowedHosts = (getCliArgument("--jira-allowed-hosts") || process.env.JIRA_ALLOWED_HOSTS || "")
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
 
+  if (!rawJiraUrl) {
+    return {
+      jiraUrl: "",
+      jiraHost: "",
+      allowedHosts: new Set(extraAllowedHosts),
+      startupError: "Set JIRA_URL or pass --jira-url=https://your-domain.atlassian.net to open your Jira workspace."
+    };
+  }
+
+  const jiraUrl = normalizeUrl(rawJiraUrl);
+
   return {
     jiraUrl: jiraUrl.toString(),
     jiraHost: jiraUrl.hostname.toLowerCase(),
-    allowedHosts: new Set(extraAllowedHosts)
+    allowedHosts: new Set(extraAllowedHosts),
+    startupError: ""
   };
 }
 
 const config = createConfig();
 
 function isConfiguredHost(hostname) {
+  if (!config.jiraHost) {
+    return false;
+  }
+
   const normalizedHost = hostname.toLowerCase();
 
   if (normalizedHost === config.jiraHost || config.allowedHosts.has(normalizedHost)) {
@@ -126,6 +141,7 @@ function shouldShowOverlay(tab) {
 function serializeState() {
   return {
     activeTabId,
+    startupError: config.startupError,
     tabs: Array.from(tabs.values()).map((tab) => ({
       id: tab.id,
       title: tab.title,
@@ -416,13 +432,22 @@ async function createWindow() {
   });
 
   await mainWindow.loadURL(createShellUrl());
-  createTab(config.jiraUrl, { activate: true, title: "Jira" });
+
+  if (!config.startupError) {
+    createTab(config.jiraUrl, { activate: true, title: "Jira" });
+  }
+
   refreshShell();
 }
 
 ipcMain.handle("shell:get-state", () => serializeState());
 
 ipcMain.on("shell:new-tab", (_event, targetUrl) => {
+  if (!config.jiraUrl) {
+    sendState();
+    return;
+  }
+
   createTab(targetUrl || config.jiraUrl, { activate: true, title: "Jira" });
 });
 
