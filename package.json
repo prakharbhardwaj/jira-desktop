@@ -1,0 +1,50 @@
+{
+  "name": "my-jira-client",
+  "productName": "Jira",
+  "version": "1.0.0",
+  "description": "Electron wrapper for Jira",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test:smoke": "node tests/smoke.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "release-win": "electron-builder --config.asar=true --config.compression=maximum --win --publish never",
+    "release-mac": "electron-builder --config.asar=true --config.compression=maximum --mac --publish never"
+  },
+  "repository": "https://github.com/electron/electron-quick-start",
+  "keywords": [
+    "Electron",
+    "jira client",
+    "jira"
+  ],
+  "author": "Prakhar Prakash Bhardwaj",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^26.6.10",
+    "electron-builder": "^25.1.8",
+    "playwright": "^1.59.1"
+  },
+  "build": {
+    "asar": true,
+    "compression": "maximum",
+    "mac": {
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    }
+  }
+}

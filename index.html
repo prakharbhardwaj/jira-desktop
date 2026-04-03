@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:;"
+    >
+    <link href="./styles.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jira Desktop</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="badge">Jira Desktop</span>
+        </div>
+        <div class="tab-strip" id="tab-strip" aria-label="Open tabs"></div>
+        <button class="new-tab-button" id="new-tab-button" type="button" aria-label="Open a new tab">
+          +
+        </button>
+      </header>
+      <section class="stage">
+        <div class="status-layer" id="status-layer" hidden>
+          <section class="card">
+            <h1 id="title">Loading Jira</h1>
+            <p id="message">Connecting to your Jira workspace...</p>
+            <p class="meta" id="target-url"></p>
+            <div class="spinner" id="spinner" aria-hidden="true"></div>
+            <button class="retry-button" id="retry-button" type="button" hidden>Retry</button>
+          </section>
+        </div>
+      </section>
+    </main>
+    <script src="./renderer.js"></script>
+  </body>
+</html>
