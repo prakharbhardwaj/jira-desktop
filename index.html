@@ -1,33 +1,62 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
-    <meta charset="UTF-8">
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:;"
-    >
-    <link href="./styles.css" rel="stylesheet">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:;" />
+    <link href="./styles.css" rel="stylesheet" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Jira Desktop</title>
   </head>
   <body>
     <main class="app-shell">
-      <header class="topbar">
-        <div class="brand">
+      <div class="sidebar-trigger" id="sidebar-trigger"></div>
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand" aria-label="Jira Desktop">
+          <svg class="brand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12.005 2C6.488 2 2 6.487 2 12.005C2 17.52 6.488 22 12.005 22C17.52 22 22 17.52 22 12.005C22 6.487 17.52 2 12.005 2Z"
+              fill="var(--accent)"
+              opacity="0.15"
+            />
+            <path
+              d="M11.53 7.27L7.27 11.53C6.91 11.89 6.91 12.52 7.27 12.88L11.53 17.14C11.89 17.5 12.52 17.5 12.88 17.14L17.14 12.88C17.5 12.52 17.5 11.89 17.14 11.53L12.88 7.27C12.52 6.91 11.89 6.91 11.53 7.27Z"
+              fill="var(--accent)"
+            />
+          </svg>
           <span class="badge">Jira Desktop</span>
         </div>
-        <div class="tab-strip" id="tab-strip" aria-label="Open tabs"></div>
-        <button class="new-tab-button" id="new-tab-button" type="button" aria-label="Open a new tab">
-          +
-        </button>
-      </header>
+        <nav class="sidebar-tabs" id="tab-strip" role="tablist" aria-label="Open tabs"></nav>
+        <div class="sidebar-footer">
+          <button class="new-tab-button" id="new-tab-button" type="button" aria-label="Open a new tab" title="New tab">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <span>New tab</span>
+          </button>
+        </div>
+      </aside>
       <section class="stage">
         <div class="status-layer" id="status-layer" hidden>
           <section class="card">
+            <div class="card-icon" id="card-icon" aria-hidden="true">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12.005 2C6.488 2 2 6.487 2 12.005C2 17.52 6.488 22 12.005 22C17.52 22 22 17.52 22 12.005C22 6.487 17.52 2 12.005 2Z"
+                  fill="var(--accent)"
+                  opacity="0.12"
+                />
+                <path
+                  d="M11.53 7.27L7.27 11.53C6.91 11.89 6.91 12.52 7.27 12.88L11.53 17.14C11.89 17.5 12.52 17.5 12.88 17.14L17.14 12.88C17.5 12.52 17.5 11.89 17.14 11.53L12.88 7.27C12.52 6.91 11.89 6.91 11.53 7.27Z"
+                  fill="var(--accent)"
+                />
+              </svg>
+            </div>
             <h1 id="title">Loading Jira</h1>
             <p id="message">Connecting to your Jira workspace...</p>
             <p class="meta" id="target-url"></p>
-            <div class="spinner" id="spinner" aria-hidden="true"></div>
+            <div class="progress-bar" id="progress-bar" aria-hidden="true">
+              <div class="progress-bar-fill"></div>
+            </div>
             <button class="retry-button" id="retry-button" type="button" hidden>Retry</button>
           </section>
         </div>

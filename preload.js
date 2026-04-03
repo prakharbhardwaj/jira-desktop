@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("jiraDesktop", {
   switchTab: (tabId) => ipcRenderer.send("shell:switch-tab", tabId),
   closeTab: (tabId) => ipcRenderer.send("shell:close-tab", tabId),
   retryActiveTab: () => ipcRenderer.send("shell:retry-active-tab"),
+  setSidebarVisible: (visible) => ipcRenderer.send("shell:sidebar-visible", !!visible),
   onState: (callback) => {
     const listener = (_event, state) => callback(state);
     ipcRenderer.on("shell:state", listener);

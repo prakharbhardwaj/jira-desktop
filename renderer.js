@@ -4,13 +4,51 @@ const statusLayerElement = document.getElementById("status-layer");
 const titleElement = document.getElementById("title");
 const messageElement = document.getElementById("message");
 const targetUrlElement = document.getElementById("target-url");
-const spinnerElement = document.getElementById("spinner");
+const progressBar = document.getElementById("progress-bar");
+const cardIcon = document.getElementById("card-icon");
 const retryButton = document.getElementById("retry-button");
+const sidebar = document.getElementById("sidebar");
+const sidebarTrigger = document.getElementById("sidebar-trigger");
 
 let currentState = {
   activeTabId: null,
   tabs: []
 };
+
+/* ── Sidebar auto-hide ────────────────────────────────── */
+
+let sidebarVisible = false;
+let hideTimeout = null;
+
+function showSidebar() {
+  clearTimeout(hideTimeout);
+  if (sidebarVisible) return;
+  sidebarVisible = true;
+  sidebar.classList.add("is-visible");
+  window.jiraDesktop.setSidebarVisible(true);
+}
+
+function hideSidebar() {
+  clearTimeout(hideTimeout);
+  hideTimeout = setTimeout(() => {
+    if (document.body.dataset.view === "loading" || document.body.dataset.view === "error") return;
+    sidebarVisible = false;
+    sidebar.classList.remove("is-visible");
+    window.jiraDesktop.setSidebarVisible(false);
+  }, 400);
+}
+
+sidebarTrigger.addEventListener("mouseenter", showSidebar);
+sidebar.addEventListener("mouseenter", () => {
+  clearTimeout(hideTimeout);
+  showSidebar();
+});
+sidebar.addEventListener("mouseleave", hideSidebar);
+sidebarTrigger.addEventListener("mouseleave", () => {
+  if (!sidebar.matches(":hover")) {
+    hideSidebar();
+  }
+});
 
 function renderTabs(state) {
   tabStripElement.innerHTML = "";
@@ -18,6 +56,8 @@ function renderTabs(state) {
   for (const tab of state.tabs) {
     const tabShell = document.createElement("div");
     tabShell.className = `tab ${tab.isActive ? "is-active" : ""}`;
+    tabShell.setAttribute("role", "tab");
+    tabShell.setAttribute("aria-selected", tab.isActive ? "true" : "false");
 
     const tabButton = document.createElement("button");
     tabButton.className = "tab-button";
@@ -32,11 +72,9 @@ function renderTabs(state) {
     if (tab.status === "loading") {
       const loadingDot = document.createElement("span");
       loadingDot.className = "tab-loading";
-      loadingDot.setAttribute("aria-hidden", "true");
+      loadingDot.setAttribute("aria-label", "Loading");
       tabButton.appendChild(loadingDot);
     }
-
-    tabShell.appendChild(tabButton);
 
     if (tab.isClosable) {
       const closeButton = document.createElement("button");
@@ -44,10 +82,12 @@ function renderTabs(state) {
       closeButton.type = "button";
       closeButton.dataset.closeTabId = tab.id;
       closeButton.setAttribute("aria-label", `Close ${tab.title || "tab"}`);
-      closeButton.textContent = "x";
-      tabShell.appendChild(closeButton);
+      closeButton.innerHTML =
+        '<svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 1l8 8M9 1l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+      tabButton.appendChild(closeButton);
     }
 
+    tabShell.appendChild(tabButton);
     tabStripElement.appendChild(tabShell);
   }
 }
@@ -60,18 +100,18 @@ function renderOverlay(state) {
     titleElement.textContent = "Loading Jira";
     messageElement.textContent = "Preparing your workspace...";
     targetUrlElement.textContent = "";
-    spinnerElement.hidden = false;
+    progressBar.hidden = false;
     retryButton.hidden = true;
+    document.body.dataset.view = "loading";
     return;
   }
 
-  const shouldShowOverlay =
-    activeTab.status === "error" ||
-    (activeTab.status === "loading" && !activeTab.hasLoadedOnce);
+  const shouldShowOverlay = activeTab.status === "error" || (activeTab.status === "loading" && !activeTab.hasLoadedOnce);
 
   statusLayerElement.hidden = !shouldShowOverlay;
 
   if (!shouldShowOverlay) {
+    delete document.body.dataset.view;
     return;
   }
 
@@ -80,9 +120,8 @@ function renderOverlay(state) {
   if (activeTab.status === "error") {
     document.body.dataset.view = "error";
     titleElement.textContent = "Jira is unavailable";
-    messageElement.textContent =
-      activeTab.errorMessage || "The desktop client could not load Jira.";
-    spinnerElement.hidden = true;
+    messageElement.textContent = activeTab.errorMessage || "The desktop client could not load Jira.";
+    progressBar.hidden = true;
     retryButton.hidden = false;
     retryButton.disabled = false;
     retryButton.textContent = "Retry";
@@ -92,7 +131,7 @@ function renderOverlay(state) {
   document.body.dataset.view = "loading";
   titleElement.textContent = "Loading Jira";
   messageElement.textContent = "Connecting to your Jira workspace. This may take a moment.";
-  spinnerElement.hidden = false;
+  progressBar.hidden = false;
   retryButton.hidden = true;
 }
 
@@ -100,6 +139,12 @@ function render(state) {
   currentState = state;
   renderTabs(state);
   renderOverlay(state);
+
+  // Force sidebar visible during loading/error overlays
+  const hasOverlay = document.body.dataset.view === "loading" || document.body.dataset.view === "error";
+  if (hasOverlay && !sidebarVisible) {
+    showSidebar();
+  }
 }
 
 tabStripElement.addEventListener("click", (event) => {

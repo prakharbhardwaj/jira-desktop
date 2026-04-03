@@ -21,8 +21,8 @@
   "author": "Prakhar Prakash Bhardwaj",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^26.6.10",
-    "electron-builder": "^25.1.8",
+    "electron": "^41.1.1",
+    "electron-builder": "^26.8.1",
     "playwright": "^1.59.1"
   },
   "build": {
@@ -40,11 +40,7 @@
         "zip"
       ],
       "category": "public.app-category.developer-tools",
-      "icon": "build/icon.png",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "icon": "build/icon.png"
     }
   }
 }

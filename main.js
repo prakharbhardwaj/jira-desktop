@@ -3,19 +3,18 @@ const path = require("path");
 const { pathToFileURL } = require("url");
 
 const DEFAULT_JIRA_URL = "https://c20y.atlassian.net";
-const DEFAULT_ALLOWED_HOST_SUFFIXES = [
-  ".atlassian.net",
-  ".atlassian.com",
-  ".jira.com"
-];
-const TAB_BAR_HEIGHT = 64;
-const HIDDEN_VIEW_BOUNDS = { x: 0, y: 0, width: 0, height: 0 };
+const DEFAULT_ALLOWED_HOST_SUFFIXES = [".atlassian.net", ".atlassian.com", ".jira.com"];
+const SIDEBAR_WIDTH = 220;
+const SIDEBAR_TRIGGER_WIDTH = 6;
+const HIDDEN_VIEW_BOUNDS = { x: -2, y: 0, width: 1, height: 1 };
 
 const configuredSessions = new WeakSet();
 let mainWindow = null;
 let nextTabId = 1;
 const tabs = new Map();
 let activeTabId = null;
+let sidebarVisible = false;
+let attachedBrowserView = null;
 
 function getCliArgument(name) {
   const prefix = `${name}=`;
@@ -39,12 +38,8 @@ function normalizeUrl(rawUrl) {
 }
 
 function createConfig() {
-  const jiraUrl = normalizeUrl(
-    getCliArgument("--jira-url") || process.env.JIRA_URL || DEFAULT_JIRA_URL
-  );
-  const extraAllowedHosts = (
-    getCliArgument("--jira-allowed-hosts") || process.env.JIRA_ALLOWED_HOSTS || ""
-  )
+  const jiraUrl = normalizeUrl(getCliArgument("--jira-url") || process.env.JIRA_URL || DEFAULT_JIRA_URL);
+  const extraAllowedHosts = (getCliArgument("--jira-allowed-hosts") || process.env.JIRA_ALLOWED_HOSTS || "")
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
@@ -65,9 +60,7 @@ function isConfiguredHost(hostname) {
     return true;
   }
 
-  return DEFAULT_ALLOWED_HOST_SUFFIXES.some((suffix) =>
-    normalizedHost.endsWith(suffix)
-  );
+  return DEFAULT_ALLOWED_HOST_SUFFIXES.some((suffix) => normalizedHost.endsWith(suffix));
 }
 
 function isAllowedNavigation(targetUrl) {
@@ -92,9 +85,7 @@ function configureSession(session) {
   configuredSessions.add(session);
 
   session.setPermissionRequestHandler((_webContents, permission, callback, details) => {
-    const allowNotifications =
-      permission === "notifications" &&
-      isAllowedNavigation(details.requestingUrl || "");
+    const allowNotifications = permission === "notifications" && isAllowedNavigation(details.requestingUrl || "");
 
     callback(allowNotifications);
   });
@@ -168,12 +159,13 @@ function updateWindowTitle() {
 
 function getContentBounds() {
   const [width, height] = mainWindow.getContentSize();
+  const xOffset = sidebarVisible ? SIDEBAR_WIDTH : SIDEBAR_TRIGGER_WIDTH;
 
   return {
-    x: 0,
-    y: TAB_BAR_HEIGHT,
-    width,
-    height: Math.max(0, height - TAB_BAR_HEIGHT)
+    x: xOffset,
+    y: 0,
+    width: Math.max(0, width - xOffset),
+    height
   };
 }
 
@@ -188,13 +180,19 @@ function updateActiveTabView() {
     return;
   }
 
-  mainWindow.setBrowserView(activeTab.view);
+  if (attachedBrowserView !== activeTab.view) {
+    mainWindow.setBrowserView(activeTab.view);
+    attachedBrowserView = activeTab.view;
+  }
+
   activeTab.view.setAutoResize({
     width: true,
     height: true
   });
 
   if (shouldShowOverlay(activeTab)) {
+    // Parking the view offscreen avoids zero-sized compositor surfaces,
+    // which reduces Chromium mailbox warnings on macOS.
     activeTab.view.setBounds(HIDDEN_VIEW_BOUNDS);
   } else {
     activeTab.view.setBounds(getContentBounds());
@@ -294,25 +292,21 @@ function attachTabHandlers(tab) {
     refreshShell();
   });
 
-  webContents.on(
-    "did-fail-load",
-    (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
-      if (!isMainFrame || errorCode === -3) {
-        return;
-      }
-
-      if (validatedUrl) {
-        tab.url = validatedUrl;
-      }
-
-      tab.status = "error";
-      tab.lastLoadFailed = true;
-      tab.errorMessage =
-        errorDescription || "Jira could not be reached. Check your connection and try again.";
-      tab.title = tab.title || getFallbackTitle(tab.url);
-      refreshShell();
+  webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
+    if (!isMainFrame || errorCode === -3) {
+      return;
     }
-  );
+
+    if (validatedUrl) {
+      tab.url = validatedUrl;
+    }
+
+    tab.status = "error";
+    tab.lastLoadFailed = true;
+    tab.errorMessage = errorDescription || "Jira could not be reached. Check your connection and try again.";
+    tab.title = tab.title || getFallbackTitle(tab.url);
+    refreshShell();
+  });
 }
 
 function createTab(targetUrl, options = {}) {
@@ -360,6 +354,10 @@ function closeTab(tabId) {
 
   const wasActive = tab.id === activeTabId;
 
+  if (attachedBrowserView === tab.view) {
+    attachedBrowserView = null;
+  }
+
   tab.view.webContents.destroy();
   tabs.delete(tab.id);
 
@@ -384,7 +382,7 @@ async function createWindow() {
     minHeight: 640,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: "#0b1220",
+    backgroundColor: "#0b1120",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -410,6 +408,7 @@ async function createWindow() {
 
     tabs.clear();
     activeTabId = null;
+    attachedBrowserView = null;
     mainWindow = null;
   });
   mainWindow.once("ready-to-show", () => {
@@ -441,6 +440,11 @@ ipcMain.on("shell:retry-active-tab", () => {
   if (activeTab) {
     loadTab(activeTab, activeTab.url || config.jiraUrl);
   }
+});
+
+ipcMain.on("shell:sidebar-visible", (_event, visible) => {
+  sidebarVisible = !!visible;
+  updateActiveTabView();
 });
 
 app.whenReady().then(() => {
