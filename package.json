@@ -31,6 +31,9 @@
   "build": {
     "asar": true,
     "compression": "maximum",
+    "directories": {
+      "output": "dist"
+    },
     "mac": {
       "artifactName": "${productName}-${version}-${arch}.${ext}",
       "target": [
@@ -43,6 +46,14 @@
         "zip"
       ],
       "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png"
+    },
+    "win": {
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "target": [
+        "nsis",
+        "zip"
+      ],
       "icon": "build/icon.png"
     }
   }
