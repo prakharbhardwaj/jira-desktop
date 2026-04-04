@@ -18,10 +18,21 @@
   "keywords": [
     "electron",
     "jira",
-    "desktop"
+    "desktop",
+    "atlassian",
+    "jira-client",
+    "productivity"
   ],
   "author": "Prakhar Prakash Bhardwaj",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/prakharbhardwaj/jira-desktop.git"
+  },
+  "homepage": "https://github.com/prakharbhardwaj/jira-desktop",
+  "bugs": {
+    "url": "https://github.com/prakharbhardwaj/jira-desktop/issues"
+  },
   "engines": {
     "node": ">=22"
   },
