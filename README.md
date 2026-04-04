@@ -100,6 +100,23 @@ yarn dist
 
 The macOS build uses a reduced entitlement set intended for a network-only Jira wrapper.
 
+## macOS Download Warning
+
+The published macOS build is currently unsigned and not notarized because this project does not use a paid Apple Developer account.
+
+- macOS may show a warning such as `Apple could not verify "Jira" is free of malware`
+- This is expected for the current open-source release process
+- The Windows build does not have this Apple-specific limitation
+
+If you still want to open the macOS build:
+
+1. Download and extract the macOS `.zip`
+2. Try opening the app once from Finder
+3. Open `System Settings > Privacy & Security`
+4. Use `Open Anyway` for Jira Desktop, or right-click the app and choose `Open`
+
+If you want a smoother install experience, use the Windows build or build the app locally from source.
+
 ## GitHub Releases
 
 The repository includes a GitHub Actions workflow at `.github/workflows/release.yml`.
@@ -108,6 +125,7 @@ The repository includes a GitHub Actions workflow at `.github/workflows/release.
 - The tag must match the `version` field in `package.json`
 - You can also run the workflow manually and optionally provide an existing release tag
 - The CI workflow publishes a macOS `.zip` build for reliability on GitHub-hosted macOS runners; local `yarn release-mac` still builds both `.zip` and `.dmg`
+- The macOS GitHub Release artifact is unsigned and requires a manual macOS security override to open
 
 ## Open Source Notes
 

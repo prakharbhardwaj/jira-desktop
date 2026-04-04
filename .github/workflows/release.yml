@@ -95,6 +95,20 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: Prepare release notes appendix
+        shell: bash
+        run: |
+          cat <<'EOF' > release-notes-extra.md
+          ## macOS note
+
+          The macOS build is currently unsigned and not notarized.
+
+          If macOS warns that it cannot verify the app, open it manually through:
+          `System Settings > Privacy & Security > Open Anyway`
+
+          You can also right-click the app in Finder and choose `Open`.
+          EOF
+
       - name: Resolve release tag
         id: release_meta
         shell: bash
@@ -107,6 +121,8 @@ jobs:
         with:
           tag_name: ${{ steps.release_meta.outputs.tag }}
           generate_release_notes: true
+          body_path: release-notes-extra.md
+          append_body: true
           files: |
             release-assets/*.dmg
             release-assets/*.zip
