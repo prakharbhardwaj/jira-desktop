@@ -24,7 +24,7 @@ On first launch, the app asks for your Jira workspace URL and stores it locally 
 
 ## Requirements
 
-- Node.js 20 or later
+- Node.js 22 or later
 - Yarn 1.x
 - A Jira Cloud workspace URL such as `https://your-domain.atlassian.net`
 

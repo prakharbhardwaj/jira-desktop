@@ -1,7 +1,7 @@
 {
   "name": "jira-desktop",
   "productName": "Jira Desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A minimal Electron desktop client for Jira.",
   "main": "main.js",
   "private": true,
