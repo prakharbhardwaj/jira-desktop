@@ -1,14 +1,15 @@
 {
   "name": "jira-desktop",
   "productName": "Jira Desktop",
-  "version": "1.1.0",
-  "description": "A minimal Electron desktop client for Jira.",
+  "version": "1.2.0",
+  "description": "A dedicated Jira desktop workspace with fewer browser tabs and safer isolation than a normal browser workflow.",
   "main": "main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
+    "test:unit": "node tests/unit.js",
     "test:smoke": "node tests/smoke.js",
-    "pack": "electron-builder --dir",
+    "package:dir": "electron-builder --dir",
     "dist": "electron-builder",
     "release-win": "electron-builder --config.asar=true --config.compression=maximum --win --publish never",
     "release-mac": "electron-builder --config.asar=true --config.compression=maximum --mac --publish never",
@@ -22,7 +23,7 @@
   "author": "Prakhar Prakash Bhardwaj",
   "license": "MIT",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "devDependencies": {
     "electron": "^41.1.1",

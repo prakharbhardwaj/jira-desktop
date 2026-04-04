@@ -20,6 +20,23 @@ async function waitForTitle(window, expectedText) {
   );
 }
 
+async function waitForTabCount(window, expectedCount) {
+  await window.waitForFunction(
+    ({ count }) => document.querySelectorAll(".tab").length === count,
+    { count: expectedCount }
+  );
+}
+
+async function waitForActiveTab(window, expectedTabId) {
+  await window.waitForFunction(
+    ({ tabId }) => {
+      const activeTab = document.querySelector(".tab.is-active .tab-button");
+      return activeTab && activeTab.dataset.tabId === tabId;
+    },
+    { tabId: expectedTabId }
+  );
+}
+
 function createLaunchEnv(configDirectory) {
   const env = { ...process.env, JIRA_DESKTOP_CONFIG_DIR: configDirectory };
 
@@ -99,7 +116,32 @@ async function run() {
     assert.match(postRetryMessage || "", /(could not|refused|reached|load)/i, `Unexpected post-retry message: ${postRetryMessage}`);
 
     await window.locator("#new-tab-button").click();
-    await window.waitForFunction(() => document.querySelectorAll(".tab").length === 2);
+    await waitForTabCount(window, 2);
+    await window.locator("#new-tab-button").click();
+    await waitForTabCount(window, 3);
+
+    const tabIds = await window.locator("[data-tab-id]").evaluateAll((elements) => {
+      return elements.map((element) => element.dataset.tabId);
+    });
+
+    assert.deepStrictEqual(tabIds, ["tab-1", "tab-2", "tab-3"]);
+
+    await window.locator(`[data-tab-id="${tabIds[0]}"]`).click();
+    await waitForActiveTab(window, tabIds[0]);
+    await window.locator(`[data-tab-id="${tabIds[1]}"]`).click();
+    await waitForActiveTab(window, tabIds[1]);
+
+    await window.locator(`[data-close-tab-id="${tabIds[1]}"]`).click();
+    await waitForTabCount(window, 2);
+
+    const remainingTabIds = await window.locator("[data-tab-id]").evaluateAll((elements) => {
+      return elements.map((element) => element.dataset.tabId);
+    });
+
+    const activeTabId = await window.locator(".tab.is-active .tab-button").getAttribute("data-tab-id");
+
+    assert.deepStrictEqual(remainingTabIds, ["tab-1", "tab-3"]);
+    assert.ok([tabIds[0], tabIds[2]].includes(activeTabId));
     assert.strictEqual(
       await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length),
       1

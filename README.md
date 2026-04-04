@@ -1,6 +1,6 @@
 # Jira Desktop
 
-Jira Desktop is a lightweight Electron client for Jira. It wraps your Jira workspace in a hardened desktop shell, supports multiple tabs, and keeps remote content isolated from the local UI layer.
+Jira Desktop is a dedicated Jira desktop workspace with fewer browser tabs and safer isolation than a normal browser workflow. It wraps your Jira workspace in a hardened desktop shell, supports multiple tabs, and keeps remote content isolated from the local UI layer.
 
 On first launch, the app asks for your Jira workspace URL and stores it locally so packaged builds work without extra environment setup.
 
@@ -85,8 +85,9 @@ yarn start
 
 ```bash
 yarn start
+yarn test:unit
 yarn test:smoke
-yarn pack
+yarn package:dir
 yarn dist
 ```
 
@@ -95,6 +96,7 @@ yarn dist
 Production packaging is handled by `electron-builder`.
 
 ```bash
+yarn package:dir
 yarn dist
 ```
 
@@ -121,6 +123,7 @@ If you want a smoother install experience, use the Windows build or build the ap
 
 The repository includes a GitHub Actions workflow at `.github/workflows/release.yml`.
 
+- Jira Desktop’s release promise is: `A dedicated Jira desktop workspace with fewer browser tabs and safer isolation than a normal browser workflow.`
 - Push a tag such as `v1.0.1` to build macOS and Windows artifacts and publish a GitHub Release
 - The tag must match the `version` field in `package.json`
 - You can also run the workflow manually and optionally provide an existing release tag

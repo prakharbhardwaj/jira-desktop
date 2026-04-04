@@ -63,6 +63,9 @@ jobs:
             exit 1
           fi
 
+      - name: Run unit tests
+        run: yarn test:unit
+
       - name: Run smoke test
         run: yarn test:smoke
 
@@ -99,6 +102,12 @@ jobs:
         shell: bash
         run: |
           cat <<'EOF' > release-notes-extra.md
+          ## About Jira Desktop
+
+          Jira Desktop is a dedicated Jira desktop workspace with fewer browser tabs and safer isolation than a normal browser workflow.
+
+          It ships as a single-purpose Jira shell with multi-tab browsing, hardened Electron defaults, and restricted navigation to Jira and approved Atlassian-adjacent hosts.
+
           ## macOS note
 
           The macOS build is currently unsigned and not notarized.
