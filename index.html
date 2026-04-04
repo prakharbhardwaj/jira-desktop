@@ -54,6 +54,22 @@
             <h1 id="title">Loading Jira</h1>
             <p id="message">Connecting to your Jira workspace...</p>
             <p class="meta" id="target-url"></p>
+            <form class="workspace-form" id="workspace-form" hidden>
+              <label class="workspace-label" for="workspace-url-input">Jira workspace URL</label>
+              <input
+                class="workspace-input"
+                id="workspace-url-input"
+                type="url"
+                inputmode="url"
+                autocomplete="url"
+                spellcheck="false"
+                placeholder="https://your-domain.atlassian.net"
+                required
+              />
+              <p class="workspace-help">Use your Jira Cloud URL. Jira Desktop will save it locally for future launches.</p>
+              <p class="workspace-error" id="workspace-error" hidden></p>
+              <button class="workspace-submit" id="workspace-submit" type="button">Continue</button>
+            </form>
             <div class="progress-bar" id="progress-bar" aria-hidden="true">
               <div class="progress-bar-fill"></div>
             </div>

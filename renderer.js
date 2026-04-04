@@ -4,6 +4,10 @@ const statusLayerElement = document.getElementById("status-layer");
 const titleElement = document.getElementById("title");
 const messageElement = document.getElementById("message");
 const targetUrlElement = document.getElementById("target-url");
+const workspaceFormElement = document.getElementById("workspace-form");
+const workspaceInputElement = document.getElementById("workspace-url-input");
+const workspaceErrorElement = document.getElementById("workspace-error");
+const workspaceSubmitElement = document.getElementById("workspace-submit");
 const progressBar = document.getElementById("progress-bar");
 const cardIcon = document.getElementById("card-icon");
 const retryButton = document.getElementById("retry-button");
@@ -12,9 +16,15 @@ const sidebarTrigger = document.getElementById("sidebar-trigger");
 
 let currentState = {
   activeTabId: null,
-  startupError: "",
+  setup: {
+    required: false,
+    message: "",
+    errorMessage: "",
+    value: ""
+  },
   tabs: []
 };
+let workspaceSubmitPending = false;
 
 /* ── Sidebar auto-hide ────────────────────────────────── */
 
@@ -32,7 +42,7 @@ function showSidebar() {
 function hideSidebar() {
   clearTimeout(hideTimeout);
   hideTimeout = setTimeout(() => {
-    if (document.body.dataset.view === "loading" || document.body.dataset.view === "error") return;
+    if (document.body.dataset.view === "loading" || document.body.dataset.view === "error" || document.body.dataset.view === "setup") return;
     sidebarVisible = false;
     sidebar.classList.remove("is-visible");
     window.jiraDesktop.setSidebarVisible(false);
@@ -93,17 +103,58 @@ function renderTabs(state) {
   }
 }
 
-function renderOverlay(state) {
-  if (state.startupError) {
-    statusLayerElement.hidden = false;
-    titleElement.textContent = "Configure Jira URL";
-    messageElement.textContent = state.startupError;
-    targetUrlElement.textContent = "";
-    progressBar.hidden = true;
-    retryButton.hidden = true;
-    document.body.dataset.view = "error";
+async function submitWorkspaceUrl() {
+  if (workspaceSubmitPending) {
     return;
   }
+
+  const workspaceUrl = workspaceInputElement.value.trim();
+  workspaceSubmitPending = true;
+  workspaceErrorElement.hidden = true;
+  workspaceErrorElement.textContent = "";
+  render(currentState);
+
+  try {
+    const result = await window.jiraDesktop.saveWorkspaceUrl(workspaceUrl);
+
+    if (!result.ok) {
+      workspaceErrorElement.hidden = false;
+      workspaceErrorElement.textContent = result.error || "Unable to save the Jira URL.";
+    }
+  } finally {
+    workspaceSubmitPending = false;
+    render(currentState);
+  }
+}
+
+function renderOverlay(state) {
+  if (state.setup.required) {
+    statusLayerElement.hidden = false;
+    titleElement.textContent = "Set up Jira Desktop";
+    messageElement.textContent = state.setup.message;
+    targetUrlElement.textContent = "";
+    workspaceFormElement.hidden = false;
+    progressBar.hidden = true;
+    retryButton.hidden = true;
+    retryButton.disabled = false;
+    retryButton.textContent = "Retry";
+    workspaceErrorElement.hidden = !state.setup.errorMessage;
+    workspaceErrorElement.textContent = state.setup.errorMessage || "";
+    workspaceInputElement.disabled = workspaceSubmitPending;
+    workspaceSubmitElement.disabled = workspaceSubmitPending;
+    workspaceSubmitElement.textContent = workspaceSubmitPending ? "Saving..." : "Continue";
+
+    if (!workspaceInputElement.matches(":focus") || !workspaceInputElement.value.trim()) {
+      workspaceInputElement.value = state.setup.value || "";
+    }
+
+    document.body.dataset.view = "setup";
+    return;
+  }
+
+  workspaceFormElement.hidden = true;
+  workspaceErrorElement.hidden = true;
+  workspaceErrorElement.textContent = "";
 
   const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId);
 
@@ -153,7 +204,10 @@ function render(state) {
   renderOverlay(state);
 
   // Force sidebar visible during loading/error overlays
-  const hasOverlay = document.body.dataset.view === "loading" || document.body.dataset.view === "error";
+  const hasOverlay =
+    document.body.dataset.view === "loading" ||
+    document.body.dataset.view === "error" ||
+    document.body.dataset.view === "setup";
   if (hasOverlay && !sidebarVisible) {
     showSidebar();
   }
@@ -177,6 +231,22 @@ tabStripElement.addEventListener("click", (event) => {
 
 newTabButton.addEventListener("click", () => {
   window.jiraDesktop.newTab();
+});
+
+workspaceFormElement.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  void submitWorkspaceUrl();
+});
+
+workspaceSubmitElement.addEventListener("click", () => {
+  void submitWorkspaceUrl();
+});
+
+workspaceInputElement.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    void submitWorkspaceUrl();
+  }
 });
 
 retryButton.addEventListener("click", () => {

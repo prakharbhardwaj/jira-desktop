@@ -2,6 +2,8 @@
 
 Jira Desktop is a lightweight Electron client for Jira. It wraps your Jira workspace in a hardened desktop shell, supports multiple tabs, and keeps remote content isolated from the local UI layer.
 
+On first launch, the app asks for your Jira workspace URL and stores it locally so packaged builds work without extra environment setup.
+
 ## Features
 
 - Multi-tab Jira browsing inside a single desktop window
@@ -30,8 +32,10 @@ Jira Desktop is a lightweight Electron client for Jira. It wraps your Jira works
 
 ```bash
 yarn install
-JIRA_URL=https://your-domain.atlassian.net yarn start
+yarn start
 ```
+
+The app will prompt for your Jira URL if one has not been saved yet.
 
 You can also pass the workspace URL on the command line:
 
@@ -39,13 +43,31 @@ You can also pass the workspace URL on the command line:
 yarn start -- --jira-url=https://your-domain.atlassian.net
 ```
 
-If no Jira URL is configured, the app stays on a setup screen instead of opening a hardcoded tenant.
+Or with an environment variable:
+
+```bash
+JIRA_URL=https://your-domain.atlassian.net yarn start
+```
+
+Both overrides take precedence over the saved local workspace URL.
+
+## First Launch
+
+When no workspace URL is configured, Jira Desktop shows a setup screen and asks for the Jira URL you want to use.
+
+- The entered URL is validated to ensure it is a valid `https://...` Jira URL
+- The URL is saved locally on the device for future launches
+- You can still override it at runtime with `JIRA_URL` or `--jira-url`
 
 ## Configuration
 
+### Saved local workspace URL
+
+For normal packaged-app usage, no environment variables are required. The app stores the selected Jira URL locally after the first successful setup.
+
 ### `JIRA_URL`
 
-Required. The Jira workspace to open.
+Optional runtime override. If set, it takes precedence over the saved local workspace URL.
 
 ### `JIRA_ALLOWED_HOSTS`
 

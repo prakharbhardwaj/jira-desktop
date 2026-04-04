@@ -1,4 +1,5 @@
-const { app, BrowserView, BrowserWindow, ipcMain, shell } = require("electron");
+const fs = require("fs");
+const { app, BrowserView, BrowserWindow, Menu, clipboard, ipcMain, shell } = require("electron");
 const path = require("path");
 const { pathToFileURL } = require("url");
 
@@ -6,6 +7,8 @@ const DEFAULT_ALLOWED_HOST_SUFFIXES = [".atlassian.net", ".atlassian.com", ".jir
 const SIDEBAR_WIDTH = 220;
 const SIDEBAR_TRIGGER_WIDTH = 6;
 const HIDDEN_VIEW_BOUNDS = { x: -2, y: 0, width: 1, height: 1 };
+const WORKSPACE_CONFIG_FILENAME = "workspace.json";
+const DEFAULT_SETUP_MESSAGE = "Enter the Jira URL you want to use and Jira Desktop will remember it on this device.";
 
 const configuredSessions = new WeakSet();
 let mainWindow = null;
@@ -14,6 +17,7 @@ const tabs = new Map();
 let activeTabId = null;
 let sidebarVisible = false;
 let attachedBrowserView = null;
+let config = null;
 
 function getCliArgument(name) {
   const prefix = `${name}=`;
@@ -36,33 +40,111 @@ function normalizeUrl(rawUrl) {
   }
 }
 
-function createConfig() {
+function getRuntimeOverrides() {
   const rawJiraUrl = (getCliArgument("--jira-url") || process.env.JIRA_URL || "").trim();
-  const extraAllowedHosts = (getCliArgument("--jira-allowed-hosts") || process.env.JIRA_ALLOWED_HOSTS || "")
+  const allowedHosts = (getCliArgument("--jira-allowed-hosts") || process.env.JIRA_ALLOWED_HOSTS || "")
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
 
-  if (!rawJiraUrl) {
-    return {
-      jiraUrl: "",
-      jiraHost: "",
-      allowedHosts: new Set(extraAllowedHosts),
-      startupError: "Set JIRA_URL or pass --jira-url=https://your-domain.atlassian.net to open your Jira workspace."
-    };
-  }
-
-  const jiraUrl = normalizeUrl(rawJiraUrl);
-
   return {
-    jiraUrl: jiraUrl.toString(),
-    jiraHost: jiraUrl.hostname.toLowerCase(),
-    allowedHosts: new Set(extraAllowedHosts),
-    startupError: ""
+    rawJiraUrl,
+    allowedHosts
   };
 }
 
-const config = createConfig();
+const runtimeOverrides = getRuntimeOverrides();
+
+function createConfigState(options = {}) {
+  const {
+    jiraUrl = "",
+    setupMessage = DEFAULT_SETUP_MESSAGE,
+    setupError = "",
+    setupValue = "",
+    workspaceSource = "none"
+  } = options;
+
+  if (!jiraUrl) {
+    return {
+      jiraUrl: "",
+      jiraHost: "",
+      allowedHosts: new Set(runtimeOverrides.allowedHosts),
+      setupMessage,
+      setupError,
+      setupValue,
+      workspaceSource
+    };
+  }
+
+  const normalizedUrl = normalizeUrl(jiraUrl);
+
+  return {
+    jiraUrl: normalizedUrl.toString(),
+    jiraHost: normalizedUrl.hostname.toLowerCase(),
+    allowedHosts: new Set(runtimeOverrides.allowedHosts),
+    setupMessage: "",
+    setupError,
+    setupValue: normalizedUrl.toString(),
+    workspaceSource
+  };
+}
+
+function getWorkspaceConfigPath() {
+  const storageDirectory = process.env.JIRA_DESKTOP_CONFIG_DIR || app.getPath("userData");
+
+  return path.join(storageDirectory, WORKSPACE_CONFIG_FILENAME);
+}
+
+function readStoredWorkspaceUrl() {
+  const configPath = getWorkspaceConfigPath();
+
+  try {
+    const rawFile = fs.readFileSync(configPath, "utf8");
+    const parsedFile = JSON.parse(rawFile);
+
+    return typeof parsedFile.jiraUrl === "string" ? parsedFile.jiraUrl.trim() : "";
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.warn(`Unable to read ${configPath}:`, error);
+    }
+
+    return "";
+  }
+}
+
+function writeStoredWorkspaceUrl(jiraUrl) {
+  const configPath = getWorkspaceConfigPath();
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify({ jiraUrl }, null, 2));
+}
+
+function loadConfig(options = {}) {
+  const { setupError = "", setupValue = "" } = options;
+  const rawJiraUrl = runtimeOverrides.rawJiraUrl || readStoredWorkspaceUrl();
+  const workspaceSource = runtimeOverrides.rawJiraUrl ? "runtime" : rawJiraUrl ? "saved" : "none";
+
+  if (!rawJiraUrl) {
+    return createConfigState({
+      setupError,
+      setupValue,
+      workspaceSource
+    });
+  }
+
+  try {
+    return createConfigState({
+      jiraUrl: rawJiraUrl,
+      setupError,
+      workspaceSource
+    });
+  } catch (error) {
+    return createConfigState({
+      setupError: setupError || error.message,
+      setupValue: setupValue || rawJiraUrl,
+      workspaceSource
+    });
+  }
+}
 
 function isConfiguredHost(hostname) {
   if (!config.jiraHost) {
@@ -99,14 +181,119 @@ function configureSession(session) {
 
   configuredSessions.add(session);
 
-  session.setPermissionRequestHandler((_webContents, permission, callback, details) => {
-    const allowNotifications = permission === "notifications" && isAllowedNavigation(details.requestingUrl || "");
+  const isAllowedPermission = (permission, origin) => {
+    if (permission === "clipboard-sanitized-write" || permission === "clipboard-read") {
+      return isAllowedNavigation(origin || "");
+    }
 
-    callback(allowNotifications);
+    return permission === "notifications" && isAllowedNavigation(origin || "");
+  };
+
+  session.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+    callback(isAllowedPermission(permission, details.requestingUrl || ""));
   });
 
   session.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
-    return permission === "notifications" && isAllowedNavigation(requestingOrigin || "");
+    return isAllowedPermission(permission, requestingOrigin || "");
+  });
+}
+
+function showContextMenu(webContents, params) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  const template = [];
+  const hasEditableActions =
+    params.isEditable ||
+    params.editFlags.canCopy ||
+    params.editFlags.canPaste ||
+    params.editFlags.canCut ||
+    params.editFlags.canSelectAll;
+
+  if (params.linkURL) {
+    if (isAllowedNavigation(params.linkURL)) {
+      template.push({
+        label: "Open Link in New Tab",
+        click: () => {
+          createTab(params.linkURL, { activate: true });
+        }
+      });
+    }
+
+    template.push(
+      {
+        label: "Open Link Externally",
+        click: () => {
+          shell.openExternal(params.linkURL);
+        }
+      },
+      {
+        label: "Copy Link",
+        click: () => {
+          clipboard.writeText(params.linkURL);
+        }
+      }
+    );
+  }
+
+  if (params.selectionText && params.editFlags.canCopy) {
+    template.push({
+      label: "Copy",
+      role: "copy"
+    });
+  }
+
+  if (hasEditableActions) {
+    if (template.length > 0) {
+      template.push({ type: "separator" });
+    }
+
+    template.push(
+      {
+        label: "Undo",
+        role: "undo",
+        enabled: params.editFlags.canUndo
+      },
+      {
+        label: "Redo",
+        role: "redo",
+        enabled: params.editFlags.canRedo
+      },
+      { type: "separator" },
+      {
+        label: "Cut",
+        role: "cut",
+        enabled: params.isEditable && params.editFlags.canCut
+      },
+      {
+        label: "Copy",
+        role: "copy",
+        enabled: params.editFlags.canCopy
+      },
+      {
+        label: "Paste",
+        role: "paste",
+        enabled: params.isEditable && params.editFlags.canPaste
+      },
+      {
+        label: "Select All",
+        role: "selectAll",
+        enabled: params.editFlags.canSelectAll
+      }
+    );
+  }
+
+  if (template.length === 0) {
+    return;
+  }
+
+  Menu.buildFromTemplate(template).popup({
+    window: mainWindow,
+    frame: params.frame,
+    x: params.x,
+    y: params.y,
+    sourceType: params.menuSourceType
   });
 }
 
@@ -141,7 +328,12 @@ function shouldShowOverlay(tab) {
 function serializeState() {
   return {
     activeTabId,
-    startupError: config.startupError,
+    setup: {
+      required: !config.jiraUrl,
+      message: config.setupMessage,
+      errorMessage: config.setupError,
+      value: config.setupValue
+    },
     tabs: Array.from(tabs.values()).map((tab) => ({
       id: tab.id,
       title: tab.title,
@@ -165,6 +357,11 @@ function sendState() {
 
 function updateWindowTitle() {
   if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  if (!config.jiraUrl) {
+    mainWindow.setTitle("Set up Jira Desktop");
     return;
   }
 
@@ -251,6 +448,10 @@ function loadTab(tab, targetUrl) {
 
 function attachTabHandlers(tab) {
   const { webContents } = tab.view;
+
+  webContents.on("context-menu", (_event, params) => {
+    showContextMenu(webContents, params);
+  });
 
   webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedNavigation(url)) {
@@ -378,7 +579,14 @@ function closeTab(tabId) {
   tabs.delete(tab.id);
 
   if (tabs.size === 0) {
-    createTab(config.jiraUrl, { activate: true });
+    activeTabId = null;
+
+    if (config.jiraUrl) {
+      createTab(config.jiraUrl, { activate: true });
+    } else {
+      refreshShell();
+    }
+
     return;
   }
 
@@ -410,6 +618,9 @@ async function createWindow() {
   });
 
   configureSession(mainWindow.webContents.session);
+  mainWindow.webContents.on("context-menu", (_event, params) => {
+    showContextMenu(mainWindow.webContents, params);
+  });
 
   mainWindow.maximize();
   mainWindow.on("resize", updateActiveTabView);
@@ -433,7 +644,7 @@ async function createWindow() {
 
   await mainWindow.loadURL(createShellUrl());
 
-  if (!config.startupError) {
+  if (config.jiraUrl) {
     createTab(config.jiraUrl, { activate: true, title: "Jira" });
   }
 
@@ -441,6 +652,41 @@ async function createWindow() {
 }
 
 ipcMain.handle("shell:get-state", () => serializeState());
+ipcMain.handle("shell:save-workspace-url", (_event, rawJiraUrl) => {
+  if (runtimeOverrides.rawJiraUrl) {
+    return {
+      ok: false,
+      error: "Jira Desktop is currently using JIRA_URL or --jira-url, so the workspace cannot be changed from inside the app."
+    };
+  }
+
+  try {
+    const normalizedUrl = normalizeUrl((rawJiraUrl || "").trim()).toString();
+    writeStoredWorkspaceUrl(normalizedUrl);
+    config = loadConfig();
+
+    if (tabs.size === 0) {
+      createTab(config.jiraUrl, { activate: true, title: "Jira" });
+    } else {
+      refreshShell();
+    }
+
+    return {
+      ok: true
+    };
+  } catch (error) {
+    config = loadConfig({
+      setupError: error.message,
+      setupValue: (rawJiraUrl || "").trim()
+    });
+    refreshShell();
+
+    return {
+      ok: false,
+      error: error.message
+    };
+  }
+});
 
 ipcMain.on("shell:new-tab", (_event, targetUrl) => {
   if (!config.jiraUrl) {
@@ -473,6 +719,7 @@ ipcMain.on("shell:sidebar-visible", (_event, visible) => {
 });
 
 app.whenReady().then(() => {
+  config = loadConfig();
   void createWindow();
 
   app.on("activate", function () {
