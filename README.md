@@ -7,12 +7,21 @@ On first launch, the app asks for your Jira workspace URL and stores it locally 
 ## Features
 
 - Multi-tab Jira browsing inside a single desktop window
+- Pinned tabs and session restore for saved workspaces
+- Keyboard shortcuts for new tab, close tab, and reload actions
+- Theme toggle, lockable sidebar, and an in-app update banner
 - Hardened Electron configuration with `contextIsolation`, `sandbox`, and disabled `nodeIntegration`
 - Navigation restricted to Jira and approved Atlassian-adjacent hosts
-- Basic loading and error states for failed network loads
-- Smoke test coverage for the desktop shell
+- Setup, loading, and error states for failed network loads
+- Unit and smoke test coverage for the desktop shell
 
 ## Screenshots
+
+### Workspace shell
+
+Illustrative shell preview showing the current sidebar, pinned-tab, shortcut, and update-banner layout.
+
+![Jira Desktop workspace shell](./assets/screenshots/home-screen.png)
 
 ### Setup screen
 
@@ -57,17 +66,24 @@ When no workspace URL is configured, Jira Desktop shows a setup screen and asks 
 
 - The entered URL is validated to ensure it is a valid `https://...` Jira URL
 - The URL is saved locally on the device for future launches
+- The last saved tab session is restored automatically when you reopen the same saved workspace
 - You can still override it at runtime with `JIRA_URL` or `--jira-url`
 
 ## Configuration
 
-### Saved local workspace URL
+### Saved local workspace state
 
 For normal packaged-app usage, no environment variables are required. The app stores the selected Jira URL locally after the first successful setup.
 
+For saved workspaces, Jira Desktop also persists the last tab session, including:
+
+- Open tab URLs and titles
+- Which tabs are pinned
+- The active tab from the previous session
+
 ### `JIRA_URL`
 
-Optional runtime override. If set, it takes precedence over the saved local workspace URL.
+Optional runtime override. If set, it takes precedence over the saved local workspace URL and skips restoring the saved tab session for that launch.
 
 ### `JIRA_ALLOWED_HOSTS`
 
@@ -80,6 +96,18 @@ JIRA_URL=https://your-domain.atlassian.net \
 JIRA_ALLOWED_HOSTS=auth.example.com,id.atlassian.com \
 yarn start
 ```
+
+## Keyboard Shortcuts
+
+```text
+Cmd/Ctrl+T              Open a new tab
+Cmd/Ctrl+W              Close the active unpinned tab
+Cmd/Ctrl+R or F5        Reload the active tab
+Cmd/Ctrl+Shift+R        Force reload the active tab and ignore cache
+Shift+F5                Force reload the active tab and ignore cache
+```
+
+The sidebar also includes a lock toggle and a light/dark theme toggle in the shell header.
 
 ## Scripts
 
@@ -100,7 +128,7 @@ yarn package:dir
 yarn dist
 ```
 
-The macOS build uses a reduced entitlement set intended for a network-only Jira wrapper.
+The macOS build uses Electron's standard runtime entitlements for unsigned local distribution.
 
 ## macOS Download Warning
 
@@ -124,11 +152,12 @@ If you want a smoother install experience, use the Windows build or build the ap
 The repository includes a GitHub Actions workflow at `.github/workflows/release.yml`.
 
 - Jira Desktop’s release promise is: `A dedicated Jira desktop workspace with fewer browser tabs and safer isolation than a normal browser workflow.`
-- Push a tag such as `v1.0.1` to build macOS and Windows artifacts and publish a GitHub Release
+- Push a tag such as `v1.3.0` to build macOS and Windows artifacts and publish a GitHub Release
 - The tag must match the `version` field in `package.json`
 - You can also run the workflow manually and optionally provide an existing release tag
 - The CI workflow publishes a macOS `.zip` build for reliability on GitHub-hosted macOS runners; local `yarn release-mac` still builds both `.zip` and `.dmg`
 - The macOS GitHub Release artifact is unsigned and requires a manual macOS security override to open
+- The desktop app checks the latest GitHub Release on launch and shows an in-app download banner when a newer version is available
 
 ## Open Source Notes
 

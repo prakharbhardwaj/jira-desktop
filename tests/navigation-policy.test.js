@@ -19,6 +19,10 @@ function runNavigationPolicyTests() {
   const openedLinks = [];
   const copiedLinks = [];
   let popupTemplate = null;
+  let popupOptions = null;
+  const mainWindow = {
+    isDestroyed: () => false
+  };
 
   const policy = createNavigationPolicy({
     Menu: {
@@ -26,7 +30,9 @@ function runNavigationPolicyTests() {
         popupTemplate = template;
 
         return {
-          popup() {}
+          popup(options) {
+            popupOptions = options;
+          }
         };
       }
     },
@@ -42,9 +48,7 @@ function runNavigationPolicyTests() {
       jiraHost: "example.atlassian.net",
       allowedHosts: new Set(["auth.example.com"])
     }),
-    getMainWindow: () => ({
-      isDestroyed: () => false
-    }),
+    getMainWindow: () => mainWindow,
     onOpenAllowedLink: (url) => {
       openedLinks.push(url);
     }
@@ -89,6 +93,11 @@ function runNavigationPolicyTests() {
   });
 
   assert.ok(Array.isArray(popupTemplate));
+  assert.strictEqual(popupOptions.window, mainWindow);
+  assert.strictEqual(popupOptions.x, 0);
+  assert.strictEqual(popupOptions.y, 0);
+  assert.strictEqual("frame" in popupOptions, false);
+  assert.strictEqual("sourceType" in popupOptions, false);
   popupTemplate[0].click();
   popupTemplate[2].click();
 

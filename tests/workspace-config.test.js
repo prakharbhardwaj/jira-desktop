@@ -81,6 +81,55 @@ function runWorkspaceConfigTests() {
       }
     });
 
+    store.writeStoredWorkspaceUrl("https://saved-example.atlassian.net");
+    store.writeStoredSession("https://saved-example.atlassian.net", {
+      activeTabIndex: 1,
+      tabs: [
+        {
+          url: "https://saved-example.atlassian.net/projects/ONE",
+          title: "Project One",
+          pinned: true
+        },
+        {
+          url: "https://saved-example.atlassian.net/issues/ISSUE-1",
+          title: "Issue 1",
+          pinned: false
+        }
+      ]
+    });
+
+    assert.deepStrictEqual(store.readStoredSession("https://saved-example.atlassian.net"), {
+      activeTabIndex: 1,
+      tabs: [
+        {
+          url: "https://saved-example.atlassian.net/projects/ONE",
+          title: "Project One",
+          pinned: true
+        },
+        {
+          url: "https://saved-example.atlassian.net/issues/ISSUE-1",
+          title: "Issue 1",
+          pinned: false
+        }
+      ]
+    });
+    assert.strictEqual(store.readStoredSession("https://other-example.atlassian.net"), null);
+  });
+
+  withTempDir((configDirectory) => {
+    const app = {
+      getPath: () => path.join(configDirectory, "user-data")
+    };
+    const store = createWorkspaceConfigStore({
+      app,
+      fs,
+      path,
+      argv: ["node", "workspace-config.test.js"],
+      env: {
+        JIRA_DESKTOP_CONFIG_DIR: configDirectory
+      }
+    });
+
     fs.writeFileSync(path.join(configDirectory, "workspace.json"), JSON.stringify({ jiraUrl: "http://bad-host" }, null, 2));
 
     const config = store.loadConfig();

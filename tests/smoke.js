@@ -37,6 +37,16 @@ async function waitForActiveTab(window, expectedTabId) {
   );
 }
 
+async function waitForPinnedTab(window, expectedTabId) {
+  await window.waitForFunction(
+    ({ tabId }) => {
+      const pinnedTab = document.querySelector(`.tab.is-pinned [data-tab-id="${tabId}"]`);
+      return !!pinnedTab;
+    },
+    { tabId: expectedTabId }
+  );
+}
+
 function createLaunchEnv(configDirectory) {
   const env = { ...process.env, JIRA_DESKTOP_CONFIG_DIR: configDirectory };
 
@@ -74,6 +84,12 @@ async function run() {
     const window = await electronApp.firstWindow();
 
     await waitForTitle(window, "Set up Jira Desktop");
+    const initialTheme = await electronApp.evaluate(({ nativeTheme }) => nativeTheme.themeSource);
+    assert.ok(["dark", "light", "system"].includes(initialTheme));
+
+    await window.locator("#theme-toggle").click();
+    const toggledTheme = await electronApp.evaluate(({ nativeTheme }) => nativeTheme.themeSource);
+    assert.notStrictEqual(toggledTheme, initialTheme);
 
     const initialMessage = await window.locator("#message").textContent();
     assert.match(initialMessage || "", /remember it on this device/i, `Unexpected setup message: ${initialMessage}`);
@@ -92,10 +108,8 @@ async function run() {
     assert.match(message || "", /(could not|refused|reached|load)/i, `Unexpected error message: ${message}`);
     assert.strictEqual(targetUrl, NORMALIZED_JIRA_URL);
     assert.strictEqual(await retryButton.isVisible(), true);
-    assert.deepStrictEqual(
-      JSON.parse(fs.readFileSync(path.join(configDirectory, WORKSPACE_CONFIG_FILENAME), "utf8")),
-      { jiraUrl: NORMALIZED_JIRA_URL }
-    );
+    const persistedWorkspace = JSON.parse(fs.readFileSync(path.join(configDirectory, WORKSPACE_CONFIG_FILENAME), "utf8"));
+    assert.strictEqual(persistedWorkspace.jiraUrl, NORMALIZED_JIRA_URL);
 
     const retryState = await window.evaluate(() => {
       const button = document.getElementById("retry-button");
@@ -115,6 +129,15 @@ async function run() {
     const postRetryMessage = await window.locator("#message").textContent();
     assert.match(postRetryMessage || "", /(could not|refused|reached|load)/i, `Unexpected post-retry message: ${postRetryMessage}`);
 
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0].webContents.sendInputEvent({
+        type: "keyDown",
+        keyCode: "F5"
+      });
+    });
+    await window.waitForFunction(() => document.body.dataset.view === "loading");
+    await waitForTitle(window, "Jira is unavailable");
+
     await window.locator("#new-tab-button").click();
     await waitForTabCount(window, 2);
     await window.locator("#new-tab-button").click();
@@ -125,6 +148,9 @@ async function run() {
     });
 
     assert.deepStrictEqual(tabIds, ["tab-1", "tab-2", "tab-3"]);
+
+    await window.locator(`[data-pin-tab-id="${tabIds[0]}"]`).click();
+    await waitForPinnedTab(window, tabIds[0]);
 
     await window.locator(`[data-tab-id="${tabIds[0]}"]`).click();
     await waitForActiveTab(window, tabIds[0]);
@@ -153,6 +179,8 @@ async function run() {
     const relaunchedWindow = await electronApp.firstWindow();
     await waitForTitle(relaunchedWindow, "Jira is unavailable");
     assert.strictEqual(await relaunchedWindow.locator("#target-url").textContent(), NORMALIZED_JIRA_URL);
+    await waitForTabCount(relaunchedWindow, 2);
+    await waitForPinnedTab(relaunchedWindow, "tab-1");
 
     console.log("Smoke test passed.");
   } catch (error) {

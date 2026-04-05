@@ -25,6 +25,28 @@
   font-family: -apple-system, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
 }
 
+/* ── Light theme ──────────────────────────────────────── */
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f8fafc;
+  --sidebar-bg: #ffffff;
+  --sidebar-border: rgba(15, 23, 42, 0.08);
+  --panel-bg: #ffffff;
+  --panel-border: rgba(15, 23, 42, 0.1);
+  --tab-hover-bg: rgba(15, 23, 42, 0.04);
+  --tab-active-bg: #dbeafe;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #94a3b8;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --danger: #dc2626;
+  --danger-bg: rgba(220, 38, 38, 0.04);
+  --danger-border: rgba(220, 38, 38, 0.15);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.08);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -123,6 +145,54 @@ body[data-view="error"] .sidebar {
   text-transform: uppercase;
 }
 
+[data-theme="light"] .badge {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+/* ── Sidebar brand actions (lock, theme) ──────────────── */
+
+.sidebar-brand-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-action-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-action-btn:hover {
+  background: var(--tab-hover-bg);
+  color: var(--text-main);
+}
+
+.sidebar-action-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.sidebar-action-btn[aria-pressed="true"] {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent);
+}
+
+[data-theme="light"] .sidebar-action-btn[aria-pressed="true"] {
+  background: rgba(37, 99, 235, 0.1);
+}
+
 /* ── Sidebar tab list ─────────────────────────────────── */
 
 .sidebar-tabs {
@@ -149,14 +219,6 @@ body[data-view="error"] .sidebar {
 
 .tab {
   position: relative;
-  animation: tab-enter 0.15s var(--ease-out) both;
-}
-
-@keyframes tab-enter {
-  from {
-    opacity: 0;
-    transform: translateX(-8px);
-  }
 }
 
 .tab-button {
@@ -260,6 +322,57 @@ body[data-view="error"] .sidebar {
   opacity: 1;
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+/* ── Pin indicator ────────────────────────────────────── */
+
+.tab-pin {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.1s,
+    background 0.1s,
+    color 0.1s;
+  -webkit-app-region: no-drag;
+}
+
+.tab:hover .tab-pin,
+.tab.is-pinned .tab-pin {
+  opacity: 1;
+}
+
+.tab.is-pinned .tab-pin {
+  color: var(--accent);
+}
+
+.tab-pin:hover {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent);
+}
+
+[data-theme="light"] .tab-pin:hover {
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.tab-pin:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.pin-divider {
+  height: 1px;
+  margin: 4px 14px;
+  background: var(--sidebar-border);
 }
 
 /* ── Sidebar footer ───────────────────────────────────── */
@@ -540,6 +653,116 @@ body[data-view="error"] h1 {
 
 body[data-view="error"] .progress-bar {
   display: none;
+}
+
+/* ── Update banner ────────────────────────────────────── */
+
+.update-banner {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-main);
+  font-size: 13px;
+  animation: banner-enter 0.3s var(--ease-out) both;
+}
+
+@keyframes banner-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+.update-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.update-action {
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.update-action:hover {
+  opacity: 0.85;
+}
+
+.update-dismiss {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    background 0.1s,
+    color 0.1s;
+}
+
+.update-dismiss:hover {
+  background: var(--tab-hover-bg);
+  color: var(--text-main);
+}
+
+/* ── Light theme form adjustments ─────────────────────── */
+
+[data-theme="light"] .workspace-input {
+  background: rgba(241, 245, 249, 0.9);
+  border-color: rgba(15, 23, 42, 0.15);
+}
+
+[data-theme="light"] .workspace-submit {
+  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+[data-theme="light"] .workspace-submit:hover {
+  background: rgba(37, 99, 235, 0.14);
+  border-color: rgba(37, 99, 235, 0.4);
+}
+
+[data-theme="light"] .retry-button {
+  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(37, 99, 235, 0.06);
+}
+
+[data-theme="light"] .retry-button:hover {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+[data-theme="light"] .new-tab-button {
+  background: rgba(37, 99, 235, 0.06);
+  color: var(--accent);
+}
+
+[data-theme="light"] .new-tab-button:hover {
+  background: rgba(37, 99, 235, 0.12);
+}
+
+[data-theme="light"] .sidebar {
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.04);
 }
 
 /* ── Reduced motion ───────────────────────────────────── */

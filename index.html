@@ -12,18 +12,40 @@
       <div class="sidebar-trigger" id="sidebar-trigger"></div>
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand" aria-label="Jira Desktop">
-          <svg class="brand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <svg class="brand-icon" width="20" height="20" viewBox="0 -30.63 255.32 285.96">
+            <defs>
+              <linearGradient id="jira-g1" x1="98.03%" x2="58.89%" y1=".16%" y2="40.77%">
+                <stop offset=".18" stop-color="#0052cc" />
+                <stop offset="1" stop-color="#2684ff" />
+              </linearGradient>
+              <linearGradient id="jira-g2" x1="100.67%" x2="55.4%" y1=".46%" y2="44.73%">
+                <stop offset=".18" stop-color="#0052cc" />
+                <stop offset="1" stop-color="#2684ff" />
+              </linearGradient>
+            </defs>
             <path
-              d="M12.005 2C6.488 2 2 6.487 2 12.005C2 17.52 6.488 22 12.005 22C17.52 22 22 17.52 22 12.005C22 6.487 17.52 2 12.005 2Z"
-              fill="var(--accent)"
-              opacity="0.15"
+              d="M244.658 0H121.707a55.502 55.502 0 0 0 55.502 55.502h22.649V77.37c.02 30.625 24.841 55.447 55.466 55.467V10.666C255.324 4.777 250.55 0 244.658 0z"
+              fill="#2684ff"
             />
             <path
-              d="M11.53 7.27L7.27 11.53C6.91 11.89 6.91 12.52 7.27 12.88L11.53 17.14C11.89 17.5 12.52 17.5 12.88 17.14L17.14 12.88C17.5 12.52 17.5 11.89 17.14 11.53L12.88 7.27C12.52 6.91 11.89 6.91 11.53 7.27Z"
-              fill="var(--accent)"
+              d="M183.822 61.262H60.872c.019 30.625 24.84 55.447 55.466 55.467h22.649v21.938c.039 30.625 24.877 55.43 55.502 55.43V71.93c0-5.891-4.776-10.667-10.667-10.667z"
+              fill="url(#jira-g1)"
+            />
+            <path
+              d="M122.951 122.489H0c0 30.653 24.85 55.502 55.502 55.502h22.72v21.867c.02 30.597 24.798 55.408 55.396 55.466V133.156c0-5.891-4.776-10.667-10.667-10.667z"
+              fill="url(#jira-g2)"
             />
           </svg>
           <span class="badge">Jira Desktop</span>
+          <div class="sidebar-brand-actions">
+            <button class="sidebar-action-btn" id="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light/dark"></button>
+            <button class="sidebar-action-btn" id="sidebar-lock" type="button" aria-label="Lock sidebar" aria-pressed="false" title="Lock sidebar (⌘S)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5" fill="none" />
+                <line x1="6" y1="2" x2="6" y2="14" stroke="currentColor" stroke-width="1.5" />
+              </svg>
+            </button>
+          </div>
         </div>
         <nav class="sidebar-tabs" id="tab-strip" role="tablist" aria-label="Open tabs"></nav>
         <div class="sidebar-footer">
@@ -35,19 +57,41 @@
           </button>
         </div>
       </aside>
+      <div class="update-banner" id="update-banner" hidden>
+        <svg class="update-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4" />
+          <path d="M8 5v4M8 11v1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+        </svg>
+        <span id="update-text">A new version is available</span>
+        <button class="update-action" id="update-action" type="button">Download</button>
+        <button class="update-dismiss" id="update-dismiss" type="button" aria-label="Dismiss">&times;</button>
+      </div>
       <section class="stage">
         <div class="status-layer" id="status-layer" hidden>
           <section class="card">
             <div class="card-icon" id="card-icon" aria-hidden="true">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+              <svg width="48" height="48" viewBox="0 -30.63 255.32 285.96">
+                <defs>
+                  <linearGradient id="jira-c1" x1="98.03%" x2="58.89%" y1=".16%" y2="40.77%">
+                    <stop offset=".18" stop-color="#0052cc" />
+                    <stop offset="1" stop-color="#2684ff" />
+                  </linearGradient>
+                  <linearGradient id="jira-c2" x1="100.67%" x2="55.4%" y1=".46%" y2="44.73%">
+                    <stop offset=".18" stop-color="#0052cc" />
+                    <stop offset="1" stop-color="#2684ff" />
+                  </linearGradient>
+                </defs>
                 <path
-                  d="M12.005 2C6.488 2 2 6.487 2 12.005C2 17.52 6.488 22 12.005 22C17.52 22 22 17.52 22 12.005C22 6.487 17.52 2 12.005 2Z"
-                  fill="var(--accent)"
-                  opacity="0.12"
+                  d="M244.658 0H121.707a55.502 55.502 0 0 0 55.502 55.502h22.649V77.37c.02 30.625 24.841 55.447 55.466 55.467V10.666C255.324 4.777 250.55 0 244.658 0z"
+                  fill="#2684ff"
                 />
                 <path
-                  d="M11.53 7.27L7.27 11.53C6.91 11.89 6.91 12.52 7.27 12.88L11.53 17.14C11.89 17.5 12.52 17.5 12.88 17.14L17.14 12.88C17.5 12.52 17.5 11.89 17.14 11.53L12.88 7.27C12.52 6.91 11.89 6.91 11.53 7.27Z"
-                  fill="var(--accent)"
+                  d="M183.822 61.262H60.872c.019 30.625 24.84 55.447 55.466 55.467h22.649v21.938c.039 30.625 24.877 55.43 55.502 55.43V71.93c0-5.891-4.776-10.667-10.667-10.667z"
+                  fill="url(#jira-c1)"
+                />
+                <path
+                  d="M122.951 122.489H0c0 30.653 24.85 55.502 55.502 55.502h22.72v21.867c.02 30.597 24.798 55.408 55.396 55.466V133.156c0-5.891-4.776-10.667-10.667-10.667z"
+                  fill="url(#jira-c2)"
                 />
               </svg>
             </div>

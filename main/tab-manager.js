@@ -57,16 +57,38 @@ function createTabManager({
         errorMessage: config.setupError,
         value: config.setupValue
       },
-      tabs: Array.from(tabs.values()).map((tab) => ({
-        id: tab.id,
-        title: tab.title,
-        url: tab.url,
-        status: tab.status,
-        hasLoadedOnce: tab.hasLoadedOnce,
-        errorMessage: tab.errorMessage,
-        isActive: tab.id === activeTabId,
-        isClosable: tabs.size > 1
-      }))
+      tabs: Array.from(tabs.values())
+        .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
+        .map((tab) => ({
+          id: tab.id,
+          title: tab.title,
+          url: tab.url,
+          status: tab.status,
+          hasLoadedOnce: tab.hasLoadedOnce,
+          errorMessage: tab.errorMessage,
+          isActive: tab.id === activeTabId,
+          isClosable: tabs.size > 1 && !tab.pinned,
+          isPinned: tab.pinned
+        }))
+    };
+  }
+
+  function serializePersistedState() {
+    const persistedTabs = Array.from(tabs.values()).map((tab) => ({
+      url: tab.url,
+      title: tab.title,
+      pinned: tab.pinned
+    }));
+
+    if (persistedTabs.length === 0) {
+      return null;
+    }
+
+    const activeTabIndex = Array.from(tabs.keys()).findIndex((tabId) => tabId === activeTabId);
+
+    return {
+      activeTabIndex: activeTabIndex >= 0 ? activeTabIndex : 0,
+      tabs: persistedTabs
     };
   }
 
@@ -200,7 +222,8 @@ function createTabManager({
       status: "loading",
       errorMessage: "",
       hasLoadedOnce: false,
-      lastLoadFailed: false
+      lastLoadFailed: false,
+      pinned: !!options.pinned
     };
 
     tabs.set(tab.id, tab);
@@ -231,6 +254,10 @@ function createTabManager({
       return;
     }
 
+    if (tab.pinned) {
+      return;
+    }
+
     const wasActive = tab.id === activeTabId;
 
     destroyTabView(tab);
@@ -258,12 +285,61 @@ function createTabManager({
     notifyStateChanged();
   }
 
-  function retryActiveTab(homeUrl) {
+  function togglePinTab(tabId) {
+    const tab = getTab(tabId);
+    if (!tab) return;
+    tab.pinned = !tab.pinned;
+    notifyStateChanged();
+  }
+
+  function reloadActiveTab(homeUrl, options = {}) {
     const activeTab = getActiveTab();
 
     if (activeTab) {
+      if (options.ignoreCache) {
+        activeTab.status = "loading";
+        activeTab.lastLoadFailed = false;
+        activeTab.errorMessage = "";
+        notifyStateChanged();
+        activeTab.view.webContents.reloadIgnoringCache();
+        return;
+      }
+
       loadTab(activeTab, activeTab.url || homeUrl);
     }
+  }
+
+  function restorePersistedState(sessionState) {
+    if (!sessionState || !Array.isArray(sessionState.tabs) || sessionState.tabs.length === 0) {
+      return false;
+    }
+
+    const activeTabIndex =
+      Number.isInteger(sessionState.activeTabIndex) &&
+      sessionState.activeTabIndex >= 0 &&
+      sessionState.activeTabIndex < sessionState.tabs.length
+        ? sessionState.activeTabIndex
+        : 0;
+
+    for (const [index, tab] of sessionState.tabs.entries()) {
+      if (!tab || typeof tab.url !== "string" || !tab.url.trim()) {
+        continue;
+      }
+
+      createTab(tab.url, {
+        activate: index === activeTabIndex,
+        pinned: !!tab.pinned,
+        title: typeof tab.title === "string" && tab.title.trim() ? tab.title.trim() : DEFAULT_TAB_TITLE
+      });
+    }
+
+    if (!activeTabId) {
+      const firstTab = Array.from(tabs.values())[0];
+      activeTabId = firstTab ? firstTab.id : null;
+      notifyStateChanged();
+    }
+
+    return hasTabs();
   }
 
   function cleanup() {
@@ -285,8 +361,11 @@ function createTabManager({
     getActiveTab,
     getTab,
     hasTabs,
-    retryActiveTab,
-    serializeState
+    reloadActiveTab,
+    restorePersistedState,
+    serializeState,
+    serializePersistedState,
+    togglePinTab
   };
 }
 

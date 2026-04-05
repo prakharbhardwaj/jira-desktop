@@ -13,6 +13,12 @@ const cardIcon = document.getElementById("card-icon");
 const retryButton = document.getElementById("retry-button");
 const sidebar = document.getElementById("sidebar");
 const sidebarTrigger = document.getElementById("sidebar-trigger");
+const sidebarLockBtn = document.getElementById("sidebar-lock");
+const themeToggleBtn = document.getElementById("theme-toggle");
+const updateBanner = document.getElementById("update-banner");
+const updateText = document.getElementById("update-text");
+const updateAction = document.getElementById("update-action");
+const updateDismiss = document.getElementById("update-dismiss");
 
 let currentState = {
   activeTabId: null,
@@ -26,10 +32,52 @@ let currentState = {
 };
 let workspaceSubmitPending = false;
 
-/* ── Sidebar auto-hide ────────────────────────────────── */
+/* ── Theme ────────────────────────────────────────────── */
+
+let currentTheme = localStorage.getItem("theme") || "dark";
+document.documentElement.setAttribute("data-theme", currentTheme);
+
+const SUN_ICON =
+  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+const MOON_ICON =
+  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M14 8.5a6.5 6.5 0 0 1-12.68 2A6.5 6.5 0 0 0 12 1.32 6.48 6.48 0 0 1 14 8.5z" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>';
+
+function applyTheme(theme) {
+  currentTheme = theme;
+  document.documentElement.setAttribute("data-theme", theme);
+  localStorage.setItem("theme", theme);
+  window.jiraDesktop.setTheme(theme);
+  themeToggleBtn.innerHTML = theme === "dark" ? SUN_ICON : MOON_ICON;
+  themeToggleBtn.title = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+}
+
+applyTheme(currentTheme);
+
+themeToggleBtn.addEventListener("click", () => {
+  applyTheme(currentTheme === "dark" ? "light" : "dark");
+});
+
+/* ── Sidebar auto-hide + lock ─────────────────────────── */
 
 let sidebarVisible = false;
 let hideTimeout = null;
+let sidebarLocked = localStorage.getItem("sidebarLocked") === "true";
+
+function applySidebarLock() {
+  sidebar.classList.toggle("is-locked", sidebarLocked);
+  sidebarLockBtn.setAttribute("aria-pressed", sidebarLocked ? "true" : "false");
+  if (sidebarLocked) {
+    showSidebar();
+  }
+}
+
+applySidebarLock();
+
+function toggleSidebarLock() {
+  sidebarLocked = !sidebarLocked;
+  localStorage.setItem("sidebarLocked", sidebarLocked);
+  applySidebarLock();
+}
 
 function showSidebar() {
   clearTimeout(hideTimeout);
@@ -41,6 +89,7 @@ function showSidebar() {
 
 function hideSidebar() {
   clearTimeout(hideTimeout);
+  if (sidebarLocked) return;
   hideTimeout = setTimeout(() => {
     if (document.body.dataset.view === "loading" || document.body.dataset.view === "error" || document.body.dataset.view === "setup") return;
     sidebarVisible = false;
@@ -48,6 +97,8 @@ function hideSidebar() {
     window.jiraDesktop.setSidebarVisible(false);
   }, 400);
 }
+
+sidebarLockBtn.addEventListener("click", toggleSidebarLock);
 
 sidebarTrigger.addEventListener("mouseenter", showSidebar);
 sidebar.addEventListener("mouseenter", () => {
@@ -61,12 +112,40 @@ sidebarTrigger.addEventListener("mouseleave", () => {
   }
 });
 
+/* ── Keyboard shortcuts ───────────────────────────────── */
+
+document.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+    e.preventDefault();
+    toggleSidebarLock();
+  }
+});
+
+/* ── Pin icon SVG ─────────────────────────────────────── */
+
+const PIN_ICON_OUTLINE =
+  '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v3l2 1v3H5V6l2-1V2"/><line x1="8" y1="9" x2="8" y2="14"/><line x1="5" y1="2" x2="11" y2="2"/></svg>';
+const PIN_ICON_FILLED =
+  '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v3l2 1v3H5V6l2-1V2"/><line x1="8" y1="9" x2="8" y2="14"/><line x1="5" y1="2" x2="11" y2="2"/></svg>';
+
 function renderTabs(state) {
   tabStripElement.innerHTML = "";
 
+  let hasPinned = false;
+  let addedDivider = false;
+
   for (const tab of state.tabs) {
+    if (tab.isPinned) hasPinned = true;
+
+    if (hasPinned && !tab.isPinned && !addedDivider) {
+      const divider = document.createElement("div");
+      divider.className = "pin-divider";
+      tabStripElement.appendChild(divider);
+      addedDivider = true;
+    }
+
     const tabShell = document.createElement("div");
-    tabShell.className = `tab ${tab.isActive ? "is-active" : ""}`;
+    tabShell.className = `tab ${tab.isActive ? "is-active" : ""} ${tab.isPinned ? "is-pinned" : ""}`;
     tabShell.setAttribute("role", "tab");
     tabShell.setAttribute("aria-selected", tab.isActive ? "true" : "false");
 
@@ -74,6 +153,15 @@ function renderTabs(state) {
     tabButton.className = "tab-button";
     tabButton.type = "button";
     tabButton.dataset.tabId = tab.id;
+
+    const pinBtn = document.createElement("button");
+    pinBtn.className = "tab-pin";
+    pinBtn.type = "button";
+    pinBtn.dataset.pinTabId = tab.id;
+    pinBtn.setAttribute("aria-label", tab.isPinned ? "Unpin tab" : "Pin tab");
+    pinBtn.title = tab.isPinned ? "Unpin" : "Pin";
+    pinBtn.innerHTML = tab.isPinned ? PIN_ICON_FILLED : PIN_ICON_OUTLINE;
+    tabButton.appendChild(pinBtn);
 
     const title = document.createElement("span");
     title.className = "tab-title";
@@ -204,16 +292,21 @@ function render(state) {
   renderOverlay(state);
 
   // Force sidebar visible during loading/error overlays
-  const hasOverlay =
-    document.body.dataset.view === "loading" ||
-    document.body.dataset.view === "error" ||
-    document.body.dataset.view === "setup";
+  const hasOverlay = document.body.dataset.view === "loading" || document.body.dataset.view === "error" || document.body.dataset.view === "setup";
   if (hasOverlay && !sidebarVisible) {
     showSidebar();
   }
 }
 
 tabStripElement.addEventListener("click", (event) => {
+  const pinButton = event.target.closest("[data-pin-tab-id]");
+
+  if (pinButton) {
+    event.stopPropagation();
+    window.jiraDesktop.togglePinTab(pinButton.dataset.pinTabId);
+    return;
+  }
+
   const closeButton = event.target.closest("[data-close-tab-id]");
 
   if (closeButton) {
@@ -261,4 +354,20 @@ window.jiraDesktop.onState((state) => {
 
 window.jiraDesktop.getState().then((state) => {
   render(state);
+});
+
+/* ── Update check ─────────────────────────────────────── */
+
+window.jiraDesktop.checkUpdate().then((update) => {
+  if (update && update.available) {
+    updateBanner.hidden = false;
+    updateText.textContent = `Version ${update.version} is available!`;
+    updateAction.addEventListener("click", () => {
+      window.jiraDesktop.openExternal(update.url);
+    });
+  }
+});
+
+updateDismiss.addEventListener("click", () => {
+  updateBanner.hidden = true;
 });

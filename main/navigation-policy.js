@@ -149,13 +149,21 @@ function createNavigationPolicy({ Menu, clipboard, shell, getConfig, getMainWind
       return;
     }
 
-    Menu.buildFromTemplate(template).popup({
+    const popupOptions = {
       window: mainWindow,
-      frame: params.frame,
       x: params.x,
-      y: params.y,
-      sourceType: params.menuSourceType
-    });
+      y: params.y
+    };
+
+    if (params.frame) {
+      popupOptions.frame = params.frame;
+    }
+
+    if (process.platform !== "darwin" && params.menuSourceType) {
+      popupOptions.sourceType = params.menuSourceType;
+    }
+
+    Menu.buildFromTemplate(template).popup(popupOptions);
   }
 
   return {

@@ -1,4 +1,4 @@
-const HIDDEN_VIEW_BOUNDS = { x: -2, y: 0, width: 1, height: 1 };
+const HIDDEN_VIEW_BOUNDS = { x: 0, y: 0, width: 0, height: 0 };
 const SIDEBAR_TRIGGER_WIDTH = 6;
 const SIDEBAR_WIDTH = 220;
 
@@ -15,6 +15,7 @@ function createWindowShell({
   iconPath,
   onClosed,
   preloadPath,
+  registerShortcutHandler,
   serializeState,
   showContextMenu
 }) {
@@ -143,6 +144,7 @@ function createWindowShell({
     });
 
     configureSession(mainWindow.webContents.session);
+    registerShortcutHandler(mainWindow.webContents);
     mainWindow.webContents.on("context-menu", (_event, params) => {
       showContextMenu(mainWindow.webContents, params);
     });
