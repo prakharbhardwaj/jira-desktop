@@ -22,7 +22,15 @@ async function waitForTitle(window, expectedText) {
 
 async function waitForTabCount(window, expectedCount) {
   await window.waitForFunction(
-    ({ count }) => document.querySelectorAll(".tab").length === count,
+    async ({ count }) => {
+      const state = await window.jiraDesktop.getState();
+
+      if (typeof window.render === "function") {
+        window.render(state);
+      }
+
+      return Array.isArray(state.tabs) && state.tabs.length === count && document.querySelectorAll(".tab").length === count;
+    },
     { count: expectedCount }
   );
 }
@@ -72,6 +80,75 @@ async function closeApp(electronApp) {
   }
 
   await electronApp.close();
+}
+
+async function logSmokeDiagnostics({ configDirectory, electronApp }) {
+  const workspacePath = path.join(configDirectory, WORKSPACE_CONFIG_FILENAME);
+
+  try {
+    const workspaceData = fs.readFileSync(workspacePath, "utf8");
+    console.error("Workspace file snapshot:");
+    console.error(workspaceData);
+  } catch (error) {
+    console.error("Unable to read workspace file snapshot.");
+    console.error(error);
+  }
+
+  if (!electronApp) {
+    return;
+  }
+
+  try {
+    const mainProcessState = await electronApp.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0];
+
+      if (!win || win.isDestroyed()) {
+        return null;
+      }
+
+      return {
+        title: win.getTitle(),
+        isVisible: win.isVisible(),
+        webContentsUrl: win.webContents.getURL()
+      };
+    });
+
+    console.error("Main process window snapshot:");
+    console.error(JSON.stringify(mainProcessState, null, 2));
+  } catch (error) {
+    console.error("Unable to capture main process diagnostics.");
+    console.error(error);
+  }
+
+  try {
+    const windows = electronApp.windows();
+    const window = windows[0];
+
+    if (!window) {
+      return;
+    }
+
+    const rendererState = await window.evaluate(async () => {
+      const state = await window.jiraDesktop.getState();
+
+      return {
+        bodyView: document.body.dataset.view || "",
+        domTabCount: document.querySelectorAll(".tab").length,
+        domTabIds: Array.from(document.querySelectorAll("[data-tab-id]")).map((element) => element.dataset.tabId),
+        title: document.querySelector("#title")?.textContent || "",
+        targetUrl: document.querySelector("#target-url")?.textContent || "",
+        stateTabCount: Array.isArray(state.tabs) ? state.tabs.length : null,
+        stateTabIds: Array.isArray(state.tabs) ? state.tabs.map((tab) => tab.id) : [],
+        activeTabId: state.activeTabId || null
+      };
+    });
+
+    console.error("Renderer snapshot:");
+    console.error(JSON.stringify(rendererState, null, 2));
+  } catch (error) {
+    console.error("Unable to capture renderer diagnostics.");
+    console.error(error);
+  }
 }
 
 async function run() {
@@ -187,6 +264,7 @@ async function run() {
     failed = true;
     console.error("Smoke test failed.");
     console.error(error);
+    await logSmokeDiagnostics({ configDirectory, electronApp });
   } finally {
     if (electronApp) {
       await closeApp(electronApp);
