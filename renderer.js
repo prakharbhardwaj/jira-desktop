@@ -298,6 +298,25 @@ function render(state) {
   }
 }
 
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function syncInitialState() {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const state = await window.jiraDesktop.getState();
+    render(state);
+
+    if (state.setup.required || state.tabs.length > 0) {
+      return;
+    }
+
+    await wait(100);
+  }
+}
+
 tabStripElement.addEventListener("click", (event) => {
   const pinButton = event.target.closest("[data-pin-tab-id]");
 
@@ -352,9 +371,7 @@ window.jiraDesktop.onState((state) => {
   render(state);
 });
 
-window.jiraDesktop.getState().then((state) => {
-  render(state);
-});
+void syncInitialState();
 
 /* ── Update check ─────────────────────────────────────── */
 
