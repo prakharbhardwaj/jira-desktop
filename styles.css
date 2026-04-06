@@ -378,6 +378,9 @@ body[data-view="error"] .sidebar {
 /* ── Sidebar footer ───────────────────────────────────── */
 
 .sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding: 8px 10px 12px;
   border-top: 1px solid var(--sidebar-border);
   flex-shrink: 0;
@@ -658,37 +661,63 @@ body[data-view="error"] .progress-bar {
 /* ── Update banner ────────────────────────────────────── */
 
 .update-banner {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  z-index: 200;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 12px;
   border-radius: var(--radius-md);
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--shadow-lg);
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
   color: var(--text-main);
-  font-size: 13px;
   animation: banner-enter 0.3s var(--ease-out) both;
+  -webkit-app-region: no-drag;
 }
 
 @keyframes banner-enter {
   from {
     opacity: 0;
-    transform: translateY(-12px);
+    transform: translateY(6px);
   }
+}
+
+.update-banner-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.update-banner-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.update-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
 }
 
 .update-icon {
   flex-shrink: 0;
   color: var(--accent);
+  margin-top: 1px;
+}
+
+.update-text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-main);
 }
 
 .update-action {
-  padding: 4px 12px;
+  flex: 1;
+  min-height: 32px;
+  padding: 6px 12px;
   border: none;
   border-radius: var(--radius-sm);
   background: var(--accent);
@@ -696,16 +725,48 @@ body[data-view="error"] .progress-bar {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 
 .update-action:hover {
   opacity: 0.85;
 }
 
+.update-action:active {
+  transform: translateY(1px);
+}
+
+.update-link {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-align: center;
+  transition:
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.update-link:hover {
+  opacity: 0.85;
+}
+
+.update-link:focus-visible,
+.update-action:focus-visible,
+.update-dismiss:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .update-dismiss {
   width: 22px;
   height: 22px;
+  flex-shrink: 0;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -723,6 +784,11 @@ body[data-view="error"] .progress-bar {
 .update-dismiss:hover {
   background: var(--tab-hover-bg);
   color: var(--text-main);
+}
+
+[data-theme="light"] .update-banner {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.16);
 }
 
 /* ── Light theme form adjustments ─────────────────────── */

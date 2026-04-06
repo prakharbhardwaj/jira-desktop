@@ -18,6 +18,7 @@ const themeToggleBtn = document.getElementById("theme-toggle");
 const updateBanner = document.getElementById("update-banner");
 const updateText = document.getElementById("update-text");
 const updateAction = document.getElementById("update-action");
+const updateChangelog = document.getElementById("update-changelog");
 const updateDismiss = document.getElementById("update-dismiss");
 
 let currentState = {
@@ -31,6 +32,7 @@ let currentState = {
   tabs: []
 };
 let workspaceSubmitPending = false;
+let updateBannerVisible = false;
 
 /* ── Theme ────────────────────────────────────────────── */
 
@@ -89,7 +91,7 @@ function showSidebar() {
 
 function hideSidebar() {
   clearTimeout(hideTimeout);
-  if (sidebarLocked) return;
+  if (sidebarLocked || updateBannerVisible) return;
   hideTimeout = setTimeout(() => {
     if (document.body.dataset.view === "loading" || document.body.dataset.view === "error" || document.body.dataset.view === "setup") return;
     sidebarVisible = false;
@@ -298,6 +300,20 @@ function render(state) {
   }
 }
 
+function setUpdateBannerVisible(visible) {
+  updateBannerVisible = visible;
+  updateBanner.hidden = !visible;
+
+  if (visible) {
+    showSidebar();
+    return;
+  }
+
+  if (!sidebarLocked && !sidebar.matches(":hover")) {
+    hideSidebar();
+  }
+}
+
 function wait(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -390,14 +406,27 @@ void syncInitialState();
 
 window.jiraDesktop.checkUpdate().then((update) => {
   if (update && update.available) {
-    updateBanner.hidden = false;
+    setUpdateBannerVisible(true);
     updateText.textContent = `Version ${update.version} is available!`;
-    updateAction.addEventListener("click", () => {
-      window.jiraDesktop.openExternal(update.url);
-    });
+    updateAction.hidden = !update.downloadUrl;
+    updateAction.onclick = null;
+    updateChangelog.onclick = null;
+
+    if (update.downloadUrl) {
+      updateAction.onclick = () => {
+        window.jiraDesktop.openExternal(update.downloadUrl);
+      };
+    }
+
+    updateChangelog.onclick = () => {
+      window.jiraDesktop.openExternal(update.changelogUrl);
+    };
+    return;
   }
+
+  setUpdateBannerVisible(false);
 });
 
 updateDismiss.addEventListener("click", () => {
-  updateBanner.hidden = true;
+  setUpdateBannerVisible(false);
 });

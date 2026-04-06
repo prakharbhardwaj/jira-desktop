@@ -17,6 +17,7 @@ if (!app.isPackaged) {
 const { createNavigationPolicy } = require("./main/navigation-policy");
 const { registerShortcutHandler } = require("./main/keyboard-shortcuts");
 const { createTabManager } = require("./main/tab-manager");
+const { getUpdatePayload } = require("./main/update-check");
 const { createWindowShell } = require("./main/window-shell");
 const { createWorkspaceConfigStore } = require("./main/workspace-config");
 
@@ -240,16 +241,6 @@ ipcMain.on("shell:open-external", (_event, url) => {
   }
 });
 
-function compareVersions(latest, current) {
-  const a = latest.split(".").map(Number);
-  const b = current.split(".").map(Number);
-  for (let i = 0; i < 3; i++) {
-    if ((a[i] || 0) > (b[i] || 0)) return true;
-    if ((a[i] || 0) < (b[i] || 0)) return false;
-  }
-  return false;
-}
-
 function checkForUpdates(currentVersion) {
   return new Promise((resolve) => {
     const options = {
@@ -265,12 +256,7 @@ function checkForUpdates(currentVersion) {
       res.on("end", () => {
         try {
           const release = JSON.parse(data);
-          const latestVersion = (release.tag_name || "").replace(/^v/, "");
-          if (latestVersion && compareVersions(latestVersion, currentVersion)) {
-            resolve({ available: true, version: latestVersion, url: release.html_url });
-          } else {
-            resolve({ available: false });
-          }
+          resolve(getUpdatePayload(release, currentVersion, process.platform, process.arch));
         } catch {
           resolve({ available: false });
         }
