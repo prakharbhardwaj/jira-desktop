@@ -4,6 +4,13 @@ Jira Desktop is a dedicated Jira desktop workspace with fewer browser tabs and s
 
 On first launch, the app asks for your Jira workspace URL and stores it locally so packaged builds work without extra environment setup.
 
+## Download
+
+Download the latest packaged builds from [GitHub Releases](https://github.com/prakharbhardwaj/jira-desktop/releases/latest).
+
+- macOS and Windows builds are attached to each release
+- The macOS GitHub Release build is currently unsigned and not notarized, so macOS may require a manual security override the first time you open it
+
 ## Features
 
 - Multi-tab Jira browsing inside a single desktop window
