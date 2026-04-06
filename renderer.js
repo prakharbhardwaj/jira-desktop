@@ -146,13 +146,13 @@ function renderTabs(state) {
 
     const tabShell = document.createElement("div");
     tabShell.className = `tab ${tab.isActive ? "is-active" : ""} ${tab.isPinned ? "is-pinned" : ""}`;
-    tabShell.setAttribute("role", "tab");
-    tabShell.setAttribute("aria-selected", tab.isActive ? "true" : "false");
 
-    const tabButton = document.createElement("button");
+    const tabButton = document.createElement("div");
     tabButton.className = "tab-button";
-    tabButton.type = "button";
     tabButton.dataset.tabId = tab.id;
+    tabButton.setAttribute("role", "tab");
+    tabButton.setAttribute("aria-selected", tab.isActive ? "true" : "false");
+    tabButton.tabIndex = tab.isActive ? 0 : -1;
 
     const pinBtn = document.createElement("button");
     pinBtn.className = "tab-pin";
@@ -337,6 +337,19 @@ tabStripElement.addEventListener("click", (event) => {
   const tabButton = event.target.closest("[data-tab-id]");
 
   if (tabButton) {
+    window.jiraDesktop.switchTab(tabButton.dataset.tabId);
+  }
+});
+
+tabStripElement.addEventListener("keydown", (event) => {
+  const tabButton = event.target.closest(".tab-button[data-tab-id]");
+
+  if (!tabButton) {
+    return;
+  }
+
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
     window.jiraDesktop.switchTab(tabButton.dataset.tabId);
   }
 });
