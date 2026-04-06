@@ -97,7 +97,11 @@ function runNavigationPolicyTests() {
   assert.strictEqual(popupOptions.x, 0);
   assert.strictEqual(popupOptions.y, 0);
   assert.strictEqual("frame" in popupOptions, false);
-  assert.strictEqual("sourceType" in popupOptions, false);
+  if (process.platform === "darwin") {
+    assert.strictEqual("sourceType" in popupOptions, false);
+  } else {
+    assert.strictEqual(popupOptions.sourceType, "mouse");
+  }
   popupTemplate[0].click();
   popupTemplate[2].click();
 
