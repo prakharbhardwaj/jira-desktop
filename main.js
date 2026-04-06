@@ -27,6 +27,7 @@ const TAB_VIEW_BACKGROUND = "#0b1120";
 let config = null;
 let tabManager = null;
 let windowShell = null;
+let isQuitting = false;
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
@@ -42,8 +43,12 @@ function createShellUrl() {
   return pathToFileURL(path.join(__dirname, "index.html")).toString();
 }
 
-function persistSession() {
+function persistSession({ force = false } = {}) {
   if (!config || !config.jiraUrl || runtimeOverrides.rawJiraUrl) {
+    return;
+  }
+
+  if (isQuitting && !force) {
     return;
   }
 
@@ -307,6 +312,11 @@ app.on("second-instance", () => {
   }
 
   mainWindow.focus();
+});
+
+app.on("before-quit", () => {
+  isQuitting = true;
+  persistSession({ force: true });
 });
 
 app.on("window-all-closed", () => {
