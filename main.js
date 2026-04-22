@@ -1,6 +1,16 @@
 const fs = require("fs");
 const https = require("https");
-const { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain, nativeTheme, shell } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  WebContentsView,
+  clipboard,
+  ipcMain,
+  nativeTheme,
+  session,
+  shell
+} = require("electron");
 const path = require("path");
 const { pathToFileURL } = require("url");
 const { getDevUserDataPath } = require("./main/dev-user-data");
@@ -432,6 +442,121 @@ function checkForUpdates(currentVersion) {
 
 ipcMain.handle("shell:check-update", () => {
   return checkForUpdates(app.getVersion());
+});
+
+function serializeSpacesPayload() {
+  const activeSpaceId = tabManager ? tabManager.getActiveSpaceId() : null;
+  const spaces = workspaceConfig.getSpaces().map((space) => ({
+    id: space.id,
+    name: space.name,
+    accent: space.accent,
+    icon: space.icon,
+    jiraUrl: space.jiraUrl
+  }));
+
+  return {
+    activeSpaceId,
+    spaces,
+    palette: workspaceConfig.ACCENT_PALETTE,
+    runtimeOverride: !!runtimeOverrides.rawJiraUrl
+  };
+}
+
+ipcMain.handle("shell:list-spaces", () => serializeSpacesPayload());
+
+ipcMain.handle("shell:switch-space", (_event, spaceId) => {
+  if (runtimeOverrides.rawJiraUrl) {
+    return { ok: false, error: "Cannot switch spaces while JIRA_URL/--jira-url is active." };
+  }
+
+  if (!workspaceConfig.setActiveSpace(spaceId)) {
+    return { ok: false, error: "Unknown space." };
+  }
+
+  config = workspaceConfig.loadConfig();
+  hydrateSpace(spaceId, { activate: true });
+  windowShell.refreshShell();
+
+  return { ok: true, ...serializeSpacesPayload() };
+});
+
+ipcMain.handle("shell:add-space", (_event, input) => {
+  if (runtimeOverrides.rawJiraUrl) {
+    return { ok: false, error: "Cannot add spaces while JIRA_URL/--jira-url is active." };
+  }
+
+  try {
+    const space = workspaceConfig.addSpace(input || {});
+    config = workspaceConfig.loadConfig();
+
+    return { ok: true, space, ...serializeSpacesPayload() };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+
+ipcMain.handle("shell:update-space", (_event, input) => {
+  if (!input || typeof input.id !== "string") {
+    return { ok: false, error: "Missing space id." };
+  }
+
+  try {
+    const space = workspaceConfig.updateSpace(input.id, input.changes || {});
+
+    if (!space) {
+      return { ok: false, error: "Unknown space." };
+    }
+
+    config = workspaceConfig.loadConfig();
+    windowShell.refreshShell();
+
+    return { ok: true, space, ...serializeSpacesPayload() };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+
+ipcMain.handle("shell:delete-space", async (_event, spaceId) => {
+  if (runtimeOverrides.rawJiraUrl) {
+    return { ok: false, error: "Cannot delete spaces while JIRA_URL/--jira-url is active." };
+  }
+
+  const spaces = workspaceConfig.getSpaces();
+  const target = spaces.find((space) => space.id === spaceId);
+
+  if (!target) {
+    return { ok: false, error: "Unknown space." };
+  }
+
+  if (spaces.length <= 1) {
+    return { ok: false, error: "Cannot remove the last remaining space." };
+  }
+
+  tabManager.closeSpaceTabs(spaceId);
+  hydratedSpaces.delete(spaceId);
+
+  const partition = workspaceConfig.partitionForSpace(target);
+
+  if (partition) {
+    try {
+      await session.fromPartition(partition).clearStorageData();
+    } catch (error) {
+      console.warn("Unable to clear partition storage", error);
+    }
+  }
+
+  workspaceConfig.removeSpace(spaceId);
+  config = workspaceConfig.loadConfig();
+
+  const nextActive = activeSpaceIdForConfig();
+
+  if (nextActive) {
+    hydrateSpace(nextActive, { activate: true });
+  }
+
+  windowShell.refreshShell();
+
+  return { ok: true, ...serializeSpacesPayload() };
 });
 
 ipcMain.handle("shell:get-deep-link-setting", () => ({

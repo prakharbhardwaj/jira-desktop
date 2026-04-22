@@ -3,6 +3,11 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("jiraDesktop", {
   getState: () => ipcRenderer.invoke("shell:get-state"),
   saveWorkspaceUrl: (url) => ipcRenderer.invoke("shell:save-workspace-url", url),
+  listSpaces: () => ipcRenderer.invoke("shell:list-spaces"),
+  switchSpace: (spaceId) => ipcRenderer.invoke("shell:switch-space", spaceId),
+  addSpace: (input) => ipcRenderer.invoke("shell:add-space", input),
+  updateSpace: (input) => ipcRenderer.invoke("shell:update-space", input),
+  deleteSpace: (spaceId) => ipcRenderer.invoke("shell:delete-space", spaceId),
   newTab: (url) => ipcRenderer.send("shell:new-tab", url),
   switchTab: (tabId) => ipcRenderer.send("shell:switch-tab", tabId),
   closeTab: (tabId) => ipcRenderer.send("shell:close-tab", tabId),
