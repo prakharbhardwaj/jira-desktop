@@ -5,10 +5,12 @@ const { runNavigationPolicyTests } = require("./navigation-policy.test");
 const { runTabManagerTests } = require("./tab-manager.test");
 const { runUpdateCheckTests } = require("./update-check.test");
 const { runWorkspaceConfigTests } = require("./workspace-config.test");
+const { runWorkspacePartitionTests } = require("./workspace-partition.test");
 
 runDevUserDataTests();
 runKeyboardShortcutTests();
 runWorkspaceConfigTests();
+runWorkspacePartitionTests();
 runNavigationPolicyTests();
 runTabManagerTests();
 runDeepLinkTests();

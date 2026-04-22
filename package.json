@@ -9,6 +9,7 @@
     "start": "electron .",
     "test:unit": "node tests/unit.js",
     "test:smoke": "node tests/smoke.js",
+    "test:smoke-partition": "node tests/smoke-partition.js",
     "package:dir": "electron-builder --dir",
     "dist": "electron-builder",
     "release-win": "electron-builder --config.asar=true --config.compression=maximum --win --publish never",
