@@ -227,17 +227,53 @@ const navigationPolicy = createNavigationPolicy({
   }
 });
 
+function findSpaceForDeepLink(targetUrl) {
+  let targetOrigin;
+
+  try {
+    targetOrigin = new URL(targetUrl).origin;
+  } catch {
+    return null;
+  }
+
+  const spaces = workspaceConfig.getSpaces();
+
+  for (const space of spaces) {
+    try {
+      if (new URL(space.jiraUrl).origin === targetOrigin) {
+        return space;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return null;
+}
+
 const deepLinkRouter = createDeepLinkRouter({
   isAllowedNavigation: (url) => (windowShell ? navigationPolicy.isAllowedNavigation(url) : false),
   createTab: (url, options) => {
-    if (!tabManager || !config || !config.spaceId) {
+    if (!tabManager || !config) {
+      return null;
+    }
+
+    const matchedSpace = runtimeOverrides.rawJiraUrl ? null : findSpaceForDeepLink(url);
+    let targetSpaceId = activeSpaceIdForConfig();
+
+    if (matchedSpace && matchedSpace.id !== config.spaceId) {
+      switchSpaceById(matchedSpace.id);
+      targetSpaceId = matchedSpace.id;
+    }
+
+    if (!targetSpaceId) {
       return null;
     }
 
     const tab = tabManager.createTab(url, {
       ...options,
-      spaceId: config.spaceId,
-      partition: getSpacePartition(config.spaceId)
+      spaceId: targetSpaceId,
+      partition: partitionForSpaceId(targetSpaceId)
     });
 
     if (windowShell) {
