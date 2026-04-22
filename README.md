@@ -13,6 +13,7 @@ Download the latest packaged builds from [GitHub Releases](https://github.com/pr
 
 ## Features
 
+- Multi-workspace "Spaces" with fully isolated cookies per space
 - Multi-tab Jira browsing inside a single desktop window
 - Pinned tabs and session restore for saved workspaces
 - Keyboard shortcuts for new tab, close tab, and reload actions
@@ -114,6 +115,16 @@ Jira Desktop can register itself as the handler for the `jira-desktop://` URL sc
 - When the app is not running, launching it via a `jira-desktop://` URL opens the link after the main window finishes loading
 - The OS-level registration is removed when you turn the toggle off
 
+## Spaces
+
+Jira Desktop supports multiple Jira accounts in one app. Each space has its own `WebContentsView` partition, so cookies, storage, and login state are fully isolated between spaces.
+
+- The always-visible vertical rail on the left edge is the space switcher. Hover a space to expand the tab panel.
+- Click the `+` below the rail to add a new space — you'll be prompted for a name, Jira URL, accent color, and optional emoji.
+- Right-click any space indicator to edit or delete it. Deleting a space signs out of that Jira account on this device and purges its partition data; the last remaining space cannot be deleted.
+- v1.x users auto-migrate on first v2 launch: the existing workspace becomes your first space and keeps its cookies, so you stay logged in through the upgrade.
+- When `JIRA_URL` or `--jira-url` is set, spaces are disabled for that launch and the runtime URL becomes the single ephemeral workspace.
+
 ## Keyboard Shortcuts
 
 ```text
@@ -122,6 +133,8 @@ Cmd/Ctrl+W              Close the active unpinned tab
 Cmd/Ctrl+R or F5        Reload the active tab
 Cmd/Ctrl+Shift+R        Force reload the active tab and ignore cache
 Shift+F5                Force reload the active tab and ignore cache
+Cmd/Ctrl+1..9           Switch to space by index
+Cmd/Ctrl+Shift+] / [    Cycle next / previous space (wraps)
 ```
 
 The sidebar also includes a lock toggle and a light/dark theme toggle in the shell header.

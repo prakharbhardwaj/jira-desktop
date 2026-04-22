@@ -26,5 +26,13 @@ contextBridge.exposeInMainWorld("jiraDesktop", {
     return () => {
       ipcRenderer.removeListener("shell:state", listener);
     };
+  },
+  onSpacesChanged: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("shell:spaces-changed", listener);
+
+    return () => {
+      ipcRenderer.removeListener("shell:spaces-changed", listener);
+    };
   }
 });

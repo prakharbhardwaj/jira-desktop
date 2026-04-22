@@ -798,4 +798,10 @@ spaceDeleteConfirm.addEventListener("click", async () => {
   }
 });
 
+window.jiraDesktop.onSpacesChanged((payload) => {
+  if (!payload) return;
+  spacesState = { ...spacesState, ...payload };
+  renderSpaces();
+});
+
 void reloadSpaces();

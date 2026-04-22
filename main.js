@@ -114,6 +114,7 @@ function switchSpaceById(spaceId) {
   if (windowShell) {
     windowShell.refreshShell();
   }
+  broadcastSpacesChanged();
 }
 
 function runShortcutCommand(command) {
@@ -556,6 +557,14 @@ function serializeSpacesPayload() {
   };
 }
 
+function broadcastSpacesChanged() {
+  const mainWindow = windowShell ? windowShell.getMainWindow() : null;
+
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  mainWindow.webContents.send("shell:spaces-changed", serializeSpacesPayload());
+}
+
 ipcMain.handle("shell:list-spaces", () => serializeSpacesPayload());
 
 ipcMain.handle("shell:switch-space", (_event, spaceId) => {
@@ -570,6 +579,7 @@ ipcMain.handle("shell:switch-space", (_event, spaceId) => {
   config = workspaceConfig.loadConfig();
   hydrateSpace(spaceId, { activate: true });
   windowShell.refreshShell();
+  broadcastSpacesChanged();
 
   return { ok: true, ...serializeSpacesPayload() };
 });
@@ -582,6 +592,7 @@ ipcMain.handle("shell:add-space", (_event, input) => {
   try {
     const space = workspaceConfig.addSpace(input || {});
     config = workspaceConfig.loadConfig();
+    broadcastSpacesChanged();
 
     return { ok: true, space, ...serializeSpacesPayload() };
   } catch (error) {
@@ -603,6 +614,7 @@ ipcMain.handle("shell:update-space", (_event, input) => {
 
     config = workspaceConfig.loadConfig();
     windowShell.refreshShell();
+    broadcastSpacesChanged();
 
     return { ok: true, space, ...serializeSpacesPayload() };
   } catch (error) {
@@ -649,6 +661,7 @@ ipcMain.handle("shell:delete-space", async (_event, spaceId) => {
   }
 
   windowShell.refreshShell();
+  broadcastSpacesChanged();
 
   return { ok: true, ...serializeSpacesPayload() };
 });
