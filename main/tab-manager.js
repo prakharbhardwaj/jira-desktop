@@ -22,6 +22,29 @@ function getFallbackTitle(targetUrl) {
   }
 }
 
+function safeOrigin(targetUrl) {
+  try {
+    return new URL(targetUrl).origin;
+  } catch {
+    return "";
+  }
+}
+
+function shouldSpawnOnNavigation(tab, targetUrl) {
+  if (!tab.pinned || !tab.pinnedUrl) {
+    return false;
+  }
+
+  const pinnedOrigin = safeOrigin(tab.pinnedUrl);
+  const targetOrigin = safeOrigin(targetUrl);
+
+  if (!pinnedOrigin || !targetOrigin) {
+    return false;
+  }
+
+  return pinnedOrigin !== targetOrigin;
+}
+
 function createTabManager({
   createView,
   configureSession,
@@ -75,7 +98,7 @@ function createTabManager({
 
   function serializePersistedState() {
     const persistedTabs = Array.from(tabs.values()).map((tab) => ({
-      url: tab.url,
+      url: tab.pinned && tab.pinnedUrl ? tab.pinnedUrl : tab.url,
       title: tab.title,
       pinned: tab.pinned
     }));
@@ -146,6 +169,12 @@ function createTabManager({
       if (!isAllowedNavigation(url)) {
         event.preventDefault();
         onExternalOpen(url);
+        return;
+      }
+
+      if (shouldSpawnOnNavigation(tab, url)) {
+        event.preventDefault();
+        createTab(url, { activate: true });
       }
     });
 
@@ -214,16 +243,18 @@ function createTabManager({
 
     configureSession(view.webContents.session);
 
+    const normalizedUrl = normalizeUrl(targetUrl).toString();
     const tab = {
       id: `tab-${nextTabId++}`,
       view,
       title: options.title || DEFAULT_TAB_TITLE,
-      url: normalizeUrl(targetUrl).toString(),
+      url: normalizedUrl,
       status: "loading",
       errorMessage: "",
       hasLoadedOnce: false,
       lastLoadFailed: false,
-      pinned: !!options.pinned
+      pinned: !!options.pinned,
+      pinnedUrl: options.pinned ? normalizedUrl : ""
     };
 
     tabs.set(tab.id, tab);
@@ -288,7 +319,15 @@ function createTabManager({
   function togglePinTab(tabId) {
     const tab = getTab(tabId);
     if (!tab) return;
-    tab.pinned = !tab.pinned;
+
+    if (tab.pinned) {
+      tab.pinned = false;
+      tab.pinnedUrl = "";
+    } else {
+      tab.pinned = true;
+      tab.pinnedUrl = tab.url;
+    }
+
     notifyStateChanged();
   }
 
