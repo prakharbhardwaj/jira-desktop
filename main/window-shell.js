@@ -116,6 +116,19 @@ function createWindowShell({
     updateActiveTabView();
   }
 
+  function focusMainWindow() {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+
+    mainWindow.show();
+    mainWindow.focus();
+  }
+
   function detachView(view) {
     if (!view || attachedView !== view) {
       return;
@@ -174,6 +187,7 @@ function createWindowShell({
   return {
     createWindow,
     detachView,
+    focusMainWindow,
     getMainWindow,
     refreshShell,
     sendState,

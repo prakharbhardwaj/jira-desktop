@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld("jiraDesktop", {
   setSidebarVisible: (visible) => ipcRenderer.send("shell:sidebar-visible", !!visible),
   setTheme: (theme) => ipcRenderer.send("shell:set-theme", theme),
   checkUpdate: () => ipcRenderer.invoke("shell:check-update"),
+  getDeepLinkSetting: () => ipcRenderer.invoke("shell:get-deep-link-setting"),
+  setDeepLinkSetting: (enabled) => ipcRenderer.invoke("shell:set-deep-link-setting", !!enabled),
   openExternal: (url) => ipcRenderer.send("shell:open-external", url),
   onState: (callback) => {
     const listener = (_event, state) => callback(state);

@@ -1,3 +1,4 @@
+const { runDeepLinkTests } = require("./deep-link.test");
 const { runDevUserDataTests } = require("./dev-user-data.test");
 const { runKeyboardShortcutTests } = require("./keyboard-shortcuts.test");
 const { runNavigationPolicyTests } = require("./navigation-policy.test");
@@ -10,6 +11,7 @@ runKeyboardShortcutTests();
 runWorkspaceConfigTests();
 runNavigationPolicyTests();
 runTabManagerTests();
+runDeepLinkTests();
 runUpdateCheckTests();
 
 console.log("Unit tests passed.");

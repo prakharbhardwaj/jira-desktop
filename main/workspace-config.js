@@ -156,7 +156,27 @@ function createWorkspaceConfigStore({ app, fs, path, argv = process.argv, env = 
   }
 
   function writeStoredWorkspaceUrl(jiraUrl) {
-    writeStoredWorkspaceFile({ jiraUrl });
+    const existing = readStoredWorkspaceFile();
+    const nextData = { jiraUrl };
+
+    if (existing.openLinksInApp === true) {
+      nextData.openLinksInApp = true;
+    }
+
+    writeStoredWorkspaceFile(nextData);
+  }
+
+  function readOpenLinksInApp() {
+    const parsedFile = readStoredWorkspaceFile();
+
+    return parsedFile.openLinksInApp === true;
+  }
+
+  function writeOpenLinksInApp(enabled) {
+    const existing = readStoredWorkspaceFile();
+    const nextData = { ...existing, openLinksInApp: !!enabled };
+
+    writeStoredWorkspaceFile(nextData);
   }
 
   function writeStoredSession(jiraUrl, session) {
@@ -164,12 +184,17 @@ function createWorkspaceConfigStore({ app, fs, path, argv = process.argv, env = 
       return;
     }
 
+    const existing = readStoredWorkspaceFile();
     const normalizedJiraUrl = normalizeUrl(jiraUrl).toString();
     const nextData = { jiraUrl: normalizedJiraUrl };
     const normalizedSession = normalizeSession(session);
 
     if (normalizedSession) {
       nextData.session = normalizedSession;
+    }
+
+    if (existing.openLinksInApp === true) {
+      nextData.openLinksInApp = true;
     }
 
     writeStoredWorkspaceFile(nextData);
@@ -218,8 +243,10 @@ function createWorkspaceConfigStore({ app, fs, path, argv = process.argv, env = 
     getWorkspaceConfigPath,
     loadConfig,
     normalizeUrl,
+    readOpenLinksInApp,
     readStoredSession,
     readStoredWorkspaceUrl,
+    writeOpenLinksInApp,
     writeStoredSession,
     writeStoredWorkspaceUrl
   };

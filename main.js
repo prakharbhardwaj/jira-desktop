@@ -14,6 +14,11 @@ if (!app.isPackaged) {
   app.setPath("userData", devUserDataPath);
 }
 
+const {
+  SUPPORTED_PROTOCOL: DEEP_LINK_PROTOCOL,
+  createDeepLinkRouter,
+  findDeepLinkInArgv
+} = require("./main/deep-link");
 const { createNavigationPolicy } = require("./main/navigation-policy");
 const { registerShortcutHandler } = require("./main/keyboard-shortcuts");
 const { createTabManager } = require("./main/tab-manager");
@@ -29,6 +34,8 @@ let config = null;
 let tabManager = null;
 let windowShell = null;
 let isQuitting = false;
+let pendingDeepLink = null;
+let windowReady = false;
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
@@ -83,6 +90,45 @@ function runShortcutCommand(command) {
   }
 }
 
+function syncProtocolRegistration(enabled) {
+  if (!app.isPackaged) {
+    return;
+  }
+
+  if (enabled) {
+    app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL);
+  } else {
+    app.removeAsDefaultProtocolClient(DEEP_LINK_PROTOCOL);
+  }
+}
+
+function handleIncomingDeepLink(rawUrl) {
+  if (!rawUrl) {
+    return;
+  }
+
+  if (!workspaceConfig.readOpenLinksInApp()) {
+    return;
+  }
+
+  if (!windowReady || !tabManager || !config || !config.jiraUrl) {
+    pendingDeepLink = rawUrl;
+    return;
+  }
+
+  deepLinkRouter.route(rawUrl);
+}
+
+function drainPendingDeepLink() {
+  if (!pendingDeepLink) {
+    return;
+  }
+
+  const url = pendingDeepLink;
+  pendingDeepLink = null;
+  handleIncomingDeepLink(url);
+}
+
 const navigationPolicy = createNavigationPolicy({
   Menu,
   clipboard,
@@ -93,6 +139,23 @@ const navigationPolicy = createNavigationPolicy({
     if (tabManager) {
       tabManager.createTab(url, { activate: true });
     }
+  }
+});
+
+const deepLinkRouter = createDeepLinkRouter({
+  isAllowedNavigation: (url) => (windowShell ? navigationPolicy.isAllowedNavigation(url) : false),
+  createTab: (url, options) => {
+    if (!tabManager) {
+      return null;
+    }
+
+    const tab = tabManager.createTab(url, options);
+
+    if (windowShell) {
+      windowShell.focusMainWindow();
+    }
+
+    return tab;
   }
 });
 
@@ -151,6 +214,8 @@ async function createWindow() {
   }
 
   windowShell.refreshShell();
+  windowReady = true;
+  drainPendingDeepLink();
 }
 
 ipcMain.handle("shell:get-state", () => tabManager.serializeState(config));
@@ -275,8 +340,42 @@ ipcMain.handle("shell:check-update", () => {
   return checkForUpdates(app.getVersion());
 });
 
+ipcMain.handle("shell:get-deep-link-setting", () => ({
+  enabled: workspaceConfig.readOpenLinksInApp(),
+  supported: app.isPackaged
+}));
+
+ipcMain.handle("shell:set-deep-link-setting", (_event, enabled) => {
+  const next = !!enabled;
+
+  workspaceConfig.writeOpenLinksInApp(next);
+  syncProtocolRegistration(next);
+
+  if (next) {
+    drainPendingDeepLink();
+  }
+
+  return {
+    ok: true,
+    enabled: next,
+    supported: app.isPackaged
+  };
+});
+
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  handleIncomingDeepLink(url);
+});
+
+const coldStartDeepLink = findDeepLinkInArgv(process.argv);
+
+if (coldStartDeepLink) {
+  pendingDeepLink = coldStartDeepLink;
+}
+
 app.whenReady().then(() => {
   config = workspaceConfig.loadConfig();
+  syncProtocolRegistration(workspaceConfig.readOpenLinksInApp());
   void createWindow();
 
   app.on("activate", () => {
@@ -286,18 +385,22 @@ app.whenReady().then(() => {
   });
 });
 
-app.on("second-instance", () => {
+app.on("second-instance", (_event, argv) => {
   const mainWindow = windowShell ? windowShell.getMainWindow() : null;
 
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+
+    mainWindow.focus();
   }
 
-  if (mainWindow.isMinimized()) {
-    mainWindow.restore();
-  }
+  const incoming = findDeepLinkInArgv(argv);
 
-  mainWindow.focus();
+  if (incoming) {
+    handleIncomingDeepLink(incoming);
+  }
 });
 
 app.on("before-quit", () => {

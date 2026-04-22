@@ -15,6 +15,7 @@ const sidebar = document.getElementById("sidebar");
 const sidebarTrigger = document.getElementById("sidebar-trigger");
 const sidebarLockBtn = document.getElementById("sidebar-lock");
 const themeToggleBtn = document.getElementById("theme-toggle");
+const deepLinkToggleBtn = document.getElementById("deep-link-toggle");
 const updateBanner = document.getElementById("update-banner");
 const updateText = document.getElementById("update-text");
 const updateAction = document.getElementById("update-action");
@@ -430,3 +431,39 @@ window.jiraDesktop.checkUpdate().then((update) => {
 updateDismiss.addEventListener("click", () => {
   setUpdateBannerVisible(false);
 });
+
+/* ── Deep link setting ────────────────────────────────── */
+
+function applyDeepLinkState({ enabled, supported }) {
+  if (!supported) {
+    deepLinkToggleBtn.hidden = true;
+    return;
+  }
+
+  deepLinkToggleBtn.hidden = false;
+  deepLinkToggleBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
+  deepLinkToggleBtn.title = enabled ? "Open Jira links in this app: on" : "Open Jira links in this app: off";
+}
+
+async function loadDeepLinkState() {
+  try {
+    const state = await window.jiraDesktop.getDeepLinkSetting();
+    applyDeepLinkState(state || { enabled: false, supported: false });
+  } catch {
+    applyDeepLinkState({ enabled: false, supported: false });
+  }
+}
+
+deepLinkToggleBtn.addEventListener("click", async () => {
+  const next = deepLinkToggleBtn.getAttribute("aria-pressed") !== "true";
+  deepLinkToggleBtn.disabled = true;
+
+  try {
+    const state = await window.jiraDesktop.setDeepLinkSetting(next);
+    applyDeepLinkState(state || { enabled: next, supported: true });
+  } finally {
+    deepLinkToggleBtn.disabled = false;
+  }
+});
+
+void loadDeepLinkState();

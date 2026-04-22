@@ -17,6 +17,7 @@ Download the latest packaged builds from [GitHub Releases](https://github.com/pr
 - Pinned tabs and session restore for saved workspaces
 - Keyboard shortcuts for new tab, close tab, and reload actions
 - Theme toggle, lockable sidebar, and an in-app update banner
+- Optional `jira-desktop://` deep-link handler so Jira links from other apps open in Jira Desktop
 - Hardened Electron configuration with `contextIsolation`, `sandbox`, and disabled `nodeIntegration`
 - Navigation restricted to Jira and approved Atlassian-adjacent hosts
 - Setup, loading, and error states for failed network loads
@@ -103,6 +104,15 @@ JIRA_URL=https://your-domain.atlassian.net \
 JIRA_ALLOWED_HOSTS=auth.example.com,id.atlassian.com \
 yarn start
 ```
+
+### Deep linking
+
+Jira Desktop can register itself as the handler for the `jira-desktop://` URL scheme. When enabled, links shaped like `jira-desktop://open?url=<url-encoded-https-url>` open the target URL in the app. Links that resolve to a non-allowed host are ignored.
+
+- The setting lives in the sidebar header (the link icon) and only appears in packaged builds, so dev runs do not pollute your OS defaults
+- The toggle is off by default — turn it on when you want links from Slack, email, or browser bookmarklets to open in Jira Desktop
+- When the app is not running, launching it via a `jira-desktop://` URL opens the link after the main window finishes loading
+- The OS-level registration is removed when you turn the toggle off
 
 ## Keyboard Shortcuts
 

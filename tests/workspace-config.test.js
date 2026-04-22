@@ -130,6 +130,37 @@ function runWorkspaceConfigTests() {
       }
     });
 
+    assert.strictEqual(store.readOpenLinksInApp(), false);
+    store.writeOpenLinksInApp(true);
+    assert.strictEqual(store.readOpenLinksInApp(), true);
+
+    store.writeStoredWorkspaceUrl("https://saved-example.atlassian.net");
+    assert.strictEqual(store.readOpenLinksInApp(), true);
+
+    store.writeStoredSession("https://saved-example.atlassian.net", {
+      activeTabIndex: 0,
+      tabs: [{ url: "https://saved-example.atlassian.net/projects/ONE", title: "Project One", pinned: false }]
+    });
+    assert.strictEqual(store.readOpenLinksInApp(), true);
+
+    store.writeOpenLinksInApp(false);
+    assert.strictEqual(store.readOpenLinksInApp(), false);
+  });
+
+  withTempDir((configDirectory) => {
+    const app = {
+      getPath: () => path.join(configDirectory, "user-data")
+    };
+    const store = createWorkspaceConfigStore({
+      app,
+      fs,
+      path,
+      argv: ["node", "workspace-config.test.js"],
+      env: {
+        JIRA_DESKTOP_CONFIG_DIR: configDirectory
+      }
+    });
+
     fs.writeFileSync(path.join(configDirectory, "workspace.json"), JSON.stringify({ jiraUrl: "http://bad-host" }, null, 2));
 
     const config = store.loadConfig();
