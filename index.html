@@ -9,7 +9,14 @@
   </head>
   <body>
     <main class="app-shell">
-      <div class="sidebar-trigger" id="sidebar-trigger"></div>
+      <nav class="space-rail" id="space-rail" aria-label="Spaces">
+        <div class="space-rail-list" id="space-rail-list" role="tablist"></div>
+        <button class="space-rail-add" id="space-rail-add" type="button" aria-label="Add workspace" title="Add workspace">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
+      </nav>
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand" aria-label="Jira Desktop">
           <svg class="brand-icon" width="20" height="20" viewBox="0 -30.63 255.32 285.96">
@@ -135,6 +142,45 @@
         </div>
       </section>
     </main>
+    <div class="space-menu" id="space-menu" hidden role="menu"></div>
+    <div class="modal-overlay" id="space-modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="space-modal-title">
+        <h2 id="space-modal-title" class="modal-title">Add workspace</h2>
+        <form id="space-modal-form">
+          <div class="modal-field">
+            <label class="modal-label" for="space-modal-name">Name</label>
+            <input class="modal-input" id="space-modal-name" type="text" maxlength="30" required />
+          </div>
+          <div class="modal-field" data-url-field>
+            <label class="modal-label" for="space-modal-url">Jira URL</label>
+            <input class="modal-input" id="space-modal-url" type="url" inputmode="url" placeholder="https://your-domain.atlassian.net" required spellcheck="false" />
+          </div>
+          <div class="modal-field">
+            <label class="modal-label">Accent</label>
+            <div class="modal-palette" id="space-modal-palette"></div>
+          </div>
+          <div class="modal-field">
+            <label class="modal-label" for="space-modal-icon">Icon (optional)</label>
+            <input class="modal-input" id="space-modal-icon" type="text" maxlength="4" placeholder="🚀" />
+          </div>
+          <p class="modal-error" id="space-modal-error" hidden></p>
+          <div class="modal-actions">
+            <button class="modal-button modal-button-secondary" type="button" id="space-modal-cancel">Cancel</button>
+            <button class="modal-button modal-button-primary" type="submit" id="space-modal-submit">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="modal-overlay" id="space-delete-modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="space-delete-title">
+        <h2 id="space-delete-title" class="modal-title">Delete workspace</h2>
+        <p class="modal-text" id="space-delete-text"></p>
+        <div class="modal-actions">
+          <button class="modal-button modal-button-secondary" type="button" id="space-delete-cancel">Cancel</button>
+          <button class="modal-button modal-button-danger" type="button" id="space-delete-confirm">Delete</button>
+        </div>
+      </div>
+    </div>
     <script src="./renderer.js"></script>
   </body>
 </html>

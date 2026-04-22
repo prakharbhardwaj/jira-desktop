@@ -12,7 +12,25 @@ const progressBar = document.getElementById("progress-bar");
 const cardIcon = document.getElementById("card-icon");
 const retryButton = document.getElementById("retry-button");
 const sidebar = document.getElementById("sidebar");
-const sidebarTrigger = document.getElementById("sidebar-trigger");
+const spaceRail = document.getElementById("space-rail");
+const spaceRailList = document.getElementById("space-rail-list");
+const spaceRailAdd = document.getElementById("space-rail-add");
+const spaceMenu = document.getElementById("space-menu");
+const spaceModal = document.getElementById("space-modal");
+const spaceModalForm = document.getElementById("space-modal-form");
+const spaceModalTitle = document.getElementById("space-modal-title");
+const spaceModalName = document.getElementById("space-modal-name");
+const spaceModalUrl = document.getElementById("space-modal-url");
+const spaceModalIcon = document.getElementById("space-modal-icon");
+const spaceModalPalette = document.getElementById("space-modal-palette");
+const spaceModalError = document.getElementById("space-modal-error");
+const spaceModalCancel = document.getElementById("space-modal-cancel");
+const spaceModalSubmit = document.getElementById("space-modal-submit");
+const spaceModalUrlField = spaceModal.querySelector("[data-url-field]");
+const spaceDeleteModal = document.getElementById("space-delete-modal");
+const spaceDeleteText = document.getElementById("space-delete-text");
+const spaceDeleteCancel = document.getElementById("space-delete-cancel");
+const spaceDeleteConfirm = document.getElementById("space-delete-confirm");
 const sidebarLockBtn = document.getElementById("sidebar-lock");
 const themeToggleBtn = document.getElementById("theme-toggle");
 const deepLinkToggleBtn = document.getElementById("deep-link-toggle");
@@ -103,13 +121,13 @@ function hideSidebar() {
 
 sidebarLockBtn.addEventListener("click", toggleSidebarLock);
 
-sidebarTrigger.addEventListener("mouseenter", showSidebar);
+spaceRail.addEventListener("mouseenter", showSidebar);
 sidebar.addEventListener("mouseenter", () => {
   clearTimeout(hideTimeout);
   showSidebar();
 });
 sidebar.addEventListener("mouseleave", hideSidebar);
-sidebarTrigger.addEventListener("mouseleave", () => {
+spaceRail.addEventListener("mouseleave", () => {
   if (!sidebar.matches(":hover")) {
     hideSidebar();
   }
@@ -290,7 +308,13 @@ function renderOverlay(state) {
 }
 
 function render(state) {
+  const previousSpaceId = currentState && currentState.activeSpaceId;
   currentState = state;
+
+  if (state.activeSpaceId !== spacesState.activeSpaceId || state.activeSpaceId !== previousSpaceId) {
+    void reloadSpaces();
+  }
+
   renderTabs(state);
   renderOverlay(state);
 
@@ -467,3 +491,311 @@ deepLinkToggleBtn.addEventListener("click", async () => {
 });
 
 void loadDeepLinkState();
+
+/* ── Spaces ───────────────────────────────────────────── */
+
+let spacesState = { spaces: [], activeSpaceId: null, palette: [], runtimeOverride: false };
+
+function contrastColor(hex) {
+  const value = hex.replace("#", "");
+  if (value.length !== 6) return "#fff";
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 160 ? "#0f172a" : "#ffffff";
+}
+
+function deriveInitials(name) {
+  if (!name) return "JD";
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((part) => part.charAt(0).toUpperCase()).join("") || "JD";
+}
+
+function renderSpaces() {
+  spaceRailList.innerHTML = "";
+
+  if (spacesState.runtimeOverride) {
+    spaceRailAdd.hidden = true;
+    spaceRail.setAttribute("aria-label", "Spaces (runtime override)");
+  } else {
+    spaceRailAdd.hidden = false;
+    spaceRail.setAttribute("aria-label", "Spaces");
+  }
+
+  document.body.dataset.singleSpace = spacesState.spaces.length <= 1 ? "true" : "false";
+
+  for (const space of spacesState.spaces) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `space-rail-item ${space.id === spacesState.activeSpaceId ? "is-active" : ""}`;
+    button.style.background = space.accent || "#2684ff";
+    button.style.color = contrastColor(space.accent || "#2684ff");
+    button.dataset.spaceId = space.id;
+    button.title = `${space.name}\n${space.jiraUrl}`;
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-selected", space.id === spacesState.activeSpaceId ? "true" : "false");
+    button.textContent = space.icon && space.icon.trim() ? space.icon : deriveInitials(space.name);
+
+    spaceRailList.appendChild(button);
+  }
+}
+
+async function reloadSpaces() {
+  try {
+    const result = await window.jiraDesktop.listSpaces();
+    spacesState = result || spacesState;
+    renderSpaces();
+  } catch {
+    /* ignore */
+  }
+}
+
+spaceRailList.addEventListener("click", async (event) => {
+  const item = event.target.closest("[data-space-id]");
+  if (!item) return;
+
+  const spaceId = item.dataset.spaceId;
+
+  if (spaceId === spacesState.activeSpaceId) return;
+
+  const result = await window.jiraDesktop.switchSpace(spaceId);
+
+  if (result && result.ok) {
+    spacesState = { ...spacesState, ...result };
+    renderSpaces();
+  }
+});
+
+spaceRailList.addEventListener("contextmenu", (event) => {
+  const item = event.target.closest("[data-space-id]");
+  if (!item) return;
+  event.preventDefault();
+  openSpaceMenu(item.dataset.spaceId, event.clientX, event.clientY);
+});
+
+spaceRailAdd.addEventListener("click", () => {
+  openSpaceModal({ mode: "add" });
+});
+
+/* ── Space context menu ───────────────────────────────── */
+
+let activeMenuSpaceId = null;
+
+function closeSpaceMenu() {
+  spaceMenu.hidden = true;
+  spaceMenu.innerHTML = "";
+  activeMenuSpaceId = null;
+}
+
+function openSpaceMenu(spaceId, x, y) {
+  if (spacesState.runtimeOverride) return;
+
+  const space = spacesState.spaces.find((entry) => entry.id === spaceId);
+  if (!space) return;
+
+  activeMenuSpaceId = spaceId;
+  spaceMenu.innerHTML = "";
+
+  const editButton = document.createElement("button");
+  editButton.type = "button";
+  editButton.className = "space-menu-item";
+  editButton.textContent = "Edit…";
+  editButton.addEventListener("click", () => {
+    closeSpaceMenu();
+    openSpaceModal({ mode: "edit", space });
+  });
+  spaceMenu.appendChild(editButton);
+
+  const separator = document.createElement("div");
+  separator.className = "space-menu-separator";
+  spaceMenu.appendChild(separator);
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "space-menu-item is-danger";
+  deleteButton.textContent = "Delete…";
+  if (spacesState.spaces.length <= 1) {
+    deleteButton.disabled = true;
+    deleteButton.title = "Cannot delete the last remaining workspace";
+  }
+  deleteButton.addEventListener("click", () => {
+    closeSpaceMenu();
+    openDeleteModal(space);
+  });
+  spaceMenu.appendChild(deleteButton);
+
+  spaceMenu.style.left = `${x}px`;
+  spaceMenu.style.top = `${y}px`;
+  spaceMenu.hidden = false;
+
+  const rect = spaceMenu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    spaceMenu.style.left = `${window.innerWidth - rect.width - 4}px`;
+  }
+  if (rect.bottom > window.innerHeight) {
+    spaceMenu.style.top = `${window.innerHeight - rect.height - 4}px`;
+  }
+}
+
+document.addEventListener("click", (event) => {
+  if (!activeMenuSpaceId) return;
+  if (spaceMenu.contains(event.target)) return;
+  closeSpaceMenu();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeSpaceMenu();
+    closeSpaceModal();
+    closeDeleteModal();
+  }
+});
+
+/* ── Space modal (add / edit) ─────────────────────────── */
+
+let spaceModalMode = "add";
+let spaceModalSpaceId = null;
+let spaceModalAccent = "";
+
+function renderPalette(selected) {
+  spaceModalPalette.innerHTML = "";
+  spaceModalAccent = selected;
+
+  for (const color of spacesState.palette || []) {
+    const swatch = document.createElement("button");
+    swatch.type = "button";
+    swatch.className = `modal-palette-swatch ${color === selected ? "is-selected" : ""}`;
+    swatch.style.background = color;
+    swatch.setAttribute("aria-label", color);
+    swatch.dataset.accent = color;
+    swatch.addEventListener("click", () => {
+      spaceModalAccent = color;
+      for (const el of spaceModalPalette.querySelectorAll(".modal-palette-swatch")) {
+        el.classList.toggle("is-selected", el.dataset.accent === color);
+      }
+    });
+    spaceModalPalette.appendChild(swatch);
+  }
+}
+
+function openSpaceModal({ mode, space }) {
+  spaceModalMode = mode;
+  spaceModalSpaceId = space ? space.id : null;
+  spaceModalError.hidden = true;
+  spaceModalError.textContent = "";
+
+  if (mode === "add") {
+    spaceModalTitle.textContent = "Add workspace";
+    spaceModalName.value = "";
+    spaceModalUrl.value = "";
+    spaceModalIcon.value = "";
+    spaceModalUrlField.hidden = false;
+    renderPalette(spacesState.palette ? spacesState.palette[spacesState.spaces.length % spacesState.palette.length] : "#2684ff");
+  } else {
+    spaceModalTitle.textContent = "Edit workspace";
+    spaceModalName.value = space.name || "";
+    spaceModalUrl.value = space.jiraUrl || "";
+    spaceModalIcon.value = space.icon || "";
+    spaceModalUrlField.hidden = false;
+    renderPalette(space.accent || "#2684ff");
+  }
+
+  spaceModal.hidden = false;
+  setTimeout(() => spaceModalName.focus(), 0);
+}
+
+function closeSpaceModal() {
+  spaceModal.hidden = true;
+}
+
+spaceModalCancel.addEventListener("click", closeSpaceModal);
+spaceModal.addEventListener("click", (event) => {
+  if (event.target === spaceModal) closeSpaceModal();
+});
+
+spaceModalForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const name = spaceModalName.value.trim();
+  const jiraUrl = spaceModalUrl.value.trim();
+  const icon = spaceModalIcon.value.trim();
+  const accent = spaceModalAccent;
+
+  if (!name || !jiraUrl) return;
+
+  spaceModalSubmit.disabled = true;
+
+  try {
+    let result;
+    if (spaceModalMode === "add") {
+      result = await window.jiraDesktop.addSpace({ name, jiraUrl, accent, icon });
+    } else {
+      result = await window.jiraDesktop.updateSpace({
+        id: spaceModalSpaceId,
+        changes: { name, jiraUrl, accent, icon }
+      });
+    }
+
+    if (!result || !result.ok) {
+      spaceModalError.hidden = false;
+      spaceModalError.textContent = (result && result.error) || "Unable to save workspace.";
+      return;
+    }
+
+    spacesState = { ...spacesState, ...result };
+    renderSpaces();
+
+    if (spaceModalMode === "add" && result.space) {
+      const switchResult = await window.jiraDesktop.switchSpace(result.space.id);
+      if (switchResult && switchResult.ok) {
+        spacesState = { ...spacesState, ...switchResult };
+        renderSpaces();
+      }
+    }
+
+    closeSpaceModal();
+  } finally {
+    spaceModalSubmit.disabled = false;
+  }
+});
+
+/* ── Delete confirmation modal ────────────────────────── */
+
+let deleteTargetSpace = null;
+
+function openDeleteModal(space) {
+  deleteTargetSpace = space;
+  spaceDeleteText.textContent = `This will sign you out of "${space.name}" and permanently delete its tabs and cookies on this device.`;
+  spaceDeleteModal.hidden = false;
+}
+
+function closeDeleteModal() {
+  spaceDeleteModal.hidden = true;
+  deleteTargetSpace = null;
+}
+
+spaceDeleteCancel.addEventListener("click", closeDeleteModal);
+spaceDeleteModal.addEventListener("click", (event) => {
+  if (event.target === spaceDeleteModal) closeDeleteModal();
+});
+
+spaceDeleteConfirm.addEventListener("click", async () => {
+  if (!deleteTargetSpace) return;
+  spaceDeleteConfirm.disabled = true;
+
+  try {
+    const result = await window.jiraDesktop.deleteSpace(deleteTargetSpace.id);
+
+    if (result && result.ok) {
+      spacesState = { ...spacesState, ...result };
+      renderSpaces();
+    }
+
+    closeDeleteModal();
+  } finally {
+    spaceDeleteConfirm.disabled = false;
+  }
+});
+
+void reloadSpaces();

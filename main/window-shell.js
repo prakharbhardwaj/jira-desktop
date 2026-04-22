@@ -1,5 +1,5 @@
 const HIDDEN_VIEW_BOUNDS = { x: 0, y: 0, width: 0, height: 0 };
-const SIDEBAR_TRIGGER_WIDTH = 6;
+const SPACE_RAIL_WIDTH = 48;
 const SIDEBAR_WIDTH = 220;
 
 function shouldShowOverlay(tab) {
@@ -62,7 +62,7 @@ function createWindowShell({
 
   function getContentBounds() {
     const [width, height] = mainWindow.getContentSize();
-    const xOffset = sidebarVisible ? SIDEBAR_WIDTH : SIDEBAR_TRIGGER_WIDTH;
+    const xOffset = sidebarVisible ? SPACE_RAIL_WIDTH + SIDEBAR_WIDTH : SPACE_RAIL_WIDTH;
 
     return {
       x: xOffset,
