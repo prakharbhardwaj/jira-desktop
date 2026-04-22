@@ -29,6 +29,18 @@ function getShortcutCommand(input = {}) {
     return "close-active-tab";
   }
 
+  if (!input.shift && /^[1-9]$/.test(key)) {
+    return `switch-space-index:${Number(key) - 1}`;
+  }
+
+  if (input.shift && (key === "]" || key === "}")) {
+    return "switch-space-next";
+  }
+
+  if (input.shift && (key === "[" || key === "{")) {
+    return "switch-space-prev";
+  }
+
   return null;
 }
 

@@ -85,35 +85,93 @@ function getSpacePartition(spaceId) {
   return space ? workspaceConfig.partitionForSpace(space) : null;
 }
 
+function switchSpaceByOffset(offset) {
+  if (runtimeOverrides.rawJiraUrl) return;
+
+  const spaces = workspaceConfig.getSpaces();
+  if (spaces.length < 2) return;
+
+  const currentIndex = spaces.findIndex((space) => space.id === (config ? config.spaceId : null));
+  const nextIndex = (((currentIndex < 0 ? 0 : currentIndex) + offset) % spaces.length + spaces.length) % spaces.length;
+
+  switchSpaceById(spaces[nextIndex].id);
+}
+
+function switchSpaceByIndex(index) {
+  if (runtimeOverrides.rawJiraUrl) return;
+
+  const spaces = workspaceConfig.getSpaces();
+  if (index < 0 || index >= spaces.length) return;
+
+  switchSpaceById(spaces[index].id);
+}
+
+function switchSpaceById(spaceId) {
+  if (!workspaceConfig.setActiveSpace(spaceId)) return;
+
+  config = workspaceConfig.loadConfig();
+  hydrateSpace(spaceId, { activate: true });
+  if (windowShell) {
+    windowShell.refreshShell();
+  }
+}
+
 function runShortcutCommand(command) {
-  switch (command) {
-    case "reload-active-tab":
-      tabManager.reloadActiveTab(config ? config.jiraUrl : "");
-      return;
-    case "force-reload-active-tab":
-      tabManager.reloadActiveTab(config ? config.jiraUrl : "", { ignoreCache: true });
-      return;
-    case "new-tab":
-      if (config && config.jiraUrl && config.spaceId) {
+  if (command === "reload-active-tab") {
+    tabManager.reloadActiveTab(config ? config.jiraUrl : "");
+    return;
+  }
+
+  if (command === "force-reload-active-tab") {
+    tabManager.reloadActiveTab(config ? config.jiraUrl : "", { ignoreCache: true });
+    return;
+  }
+
+  if (command === "new-tab") {
+    if (config && config.jiraUrl) {
+      const spaceId = activeSpaceIdForConfig();
+
+      if (spaceId) {
         tabManager.createTab(config.jiraUrl, {
           activate: true,
           title: "Jira",
-          spaceId: config.spaceId,
-          partition: getSpacePartition(config.spaceId)
+          spaceId,
+          partition: partitionForSpaceId(spaceId)
         });
       }
-      return;
-    case "close-active-tab": {
-      const activeTab = tabManager.getActiveTab();
-
-      if (activeTab && !activeTab.pinned) {
-        tabManager.closeTab(activeTab.id, {
-          getHomeUrl: (spaceId) => getSpaceHomeUrl(spaceId)
-        });
-      }
-      return;
     }
-    default:
+
+    return;
+  }
+
+  if (command === "close-active-tab") {
+    const activeTab = tabManager.getActiveTab();
+
+    if (activeTab && !activeTab.pinned) {
+      tabManager.closeTab(activeTab.id, {
+        getHomeUrl: (spaceId) => getSpaceHomeUrl(spaceId)
+      });
+    }
+
+    return;
+  }
+
+  if (command === "switch-space-next") {
+    switchSpaceByOffset(1);
+    return;
+  }
+
+  if (command === "switch-space-prev") {
+    switchSpaceByOffset(-1);
+    return;
+  }
+
+  if (command.startsWith("switch-space-index:")) {
+    const index = Number(command.split(":")[1]);
+
+    if (Number.isInteger(index)) {
+      switchSpaceByIndex(index);
+    }
   }
 }
 
