@@ -52,7 +52,7 @@ function createShellUrl() {
 }
 
 function persistSession({ force = false } = {}) {
-  if (!config || !config.jiraUrl || runtimeOverrides.rawJiraUrl) {
+  if (!config || !config.jiraUrl || !config.spaceId || runtimeOverrides.rawJiraUrl) {
     return;
   }
 
@@ -60,7 +60,7 @@ function persistSession({ force = false } = {}) {
     return;
   }
 
-  workspaceConfig.writeStoredSession(config.jiraUrl, tabManager.serializePersistedState());
+  workspaceConfig.writeSpaceSession(config.spaceId, tabManager.serializePersistedState());
 }
 
 function runShortcutCommand(command) {
@@ -206,7 +206,8 @@ async function createWindow() {
   await windowShell.createWindow();
 
   if (config.jiraUrl) {
-    const restoredSession = runtimeOverrides.rawJiraUrl ? null : workspaceConfig.readStoredSession(config.jiraUrl);
+    const restoredSession =
+      runtimeOverrides.rawJiraUrl || !config.spaceId ? null : workspaceConfig.readSpaceSession(config.spaceId);
 
     if (!tabManager.restorePersistedState(restoredSession)) {
       tabManager.createTab(config.jiraUrl, { activate: true, title: "Jira" });
