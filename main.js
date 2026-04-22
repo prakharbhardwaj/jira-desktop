@@ -63,6 +63,18 @@ function persistSession({ force = false } = {}) {
   workspaceConfig.writeSpaceSession(config.spaceId, tabManager.serializePersistedState());
 }
 
+function getSpaceHomeUrl(spaceId) {
+  const space = workspaceConfig.getSpaces().find((entry) => entry.id === spaceId);
+
+  return space ? space.jiraUrl : config ? config.jiraUrl : "";
+}
+
+function getSpacePartition(spaceId) {
+  const space = workspaceConfig.getSpaces().find((entry) => entry.id === spaceId);
+
+  return space ? workspaceConfig.partitionForSpace(space) : null;
+}
+
 function runShortcutCommand(command) {
   switch (command) {
     case "reload-active-tab":
@@ -72,8 +84,13 @@ function runShortcutCommand(command) {
       tabManager.reloadActiveTab(config ? config.jiraUrl : "", { ignoreCache: true });
       return;
     case "new-tab":
-      if (config && config.jiraUrl) {
-        tabManager.createTab(config.jiraUrl, { activate: true, title: "Jira" });
+      if (config && config.jiraUrl && config.spaceId) {
+        tabManager.createTab(config.jiraUrl, {
+          activate: true,
+          title: "Jira",
+          spaceId: config.spaceId,
+          partition: getSpacePartition(config.spaceId)
+        });
       }
       return;
     case "close-active-tab": {
@@ -81,7 +98,7 @@ function runShortcutCommand(command) {
 
       if (activeTab && !activeTab.pinned) {
         tabManager.closeTab(activeTab.id, {
-          getHomeUrl: () => (config ? config.jiraUrl : "")
+          getHomeUrl: (spaceId) => getSpaceHomeUrl(spaceId)
         });
       }
       return;
@@ -145,11 +162,15 @@ const navigationPolicy = createNavigationPolicy({
 const deepLinkRouter = createDeepLinkRouter({
   isAllowedNavigation: (url) => (windowShell ? navigationPolicy.isAllowedNavigation(url) : false),
   createTab: (url, options) => {
-    if (!tabManager) {
+    if (!tabManager || !config || !config.spaceId) {
       return null;
     }
 
-    const tab = tabManager.createTab(url, options);
+    const tab = tabManager.createTab(url, {
+      ...options,
+      spaceId: config.spaceId,
+      partition: getSpacePartition(config.spaceId)
+    });
 
     if (windowShell) {
       windowShell.focusMainWindow();
@@ -202,16 +223,79 @@ windowShell = createWindowShell({
   showContextMenu: navigationPolicy.handleContextMenu
 });
 
+const RUNTIME_SPACE_ID = "__runtime__";
+const hydratedSpaces = new Set();
+
+function activeSpaceIdForConfig() {
+  if (!config || !config.jiraUrl) return null;
+
+  return config.spaceId || (runtimeOverrides.rawJiraUrl ? RUNTIME_SPACE_ID : null);
+}
+
+function partitionForSpaceId(spaceId) {
+  if (!spaceId || spaceId === RUNTIME_SPACE_ID) return null;
+
+  return getSpacePartition(spaceId);
+}
+
+function hydrateSpace(spaceId, { activate = false } = {}) {
+  if (!spaceId || hydratedSpaces.has(spaceId)) {
+    if (activate) {
+      tabManager.setActiveSpace(spaceId);
+    }
+
+    return;
+  }
+
+  hydratedSpaces.add(spaceId);
+
+  const partition = partitionForSpaceId(spaceId);
+  let targetUrl = "";
+
+  if (spaceId === RUNTIME_SPACE_ID) {
+    targetUrl = config.jiraUrl;
+  } else {
+    const space = workspaceConfig.getSpaces().find((entry) => entry.id === spaceId);
+
+    if (!space) {
+      return;
+    }
+
+    targetUrl = space.jiraUrl;
+
+    const savedSession = workspaceConfig.readSpaceSession(spaceId);
+    const restored = tabManager.restorePersistedState(spaceId, savedSession, { activate, partition });
+
+    if (restored) {
+      if (activate) {
+        tabManager.setActiveSpace(spaceId);
+      }
+
+      return;
+    }
+  }
+
+  if (!targetUrl) return;
+
+  tabManager.createTab(targetUrl, {
+    activate,
+    title: "Jira",
+    spaceId,
+    partition
+  });
+
+  if (activate) {
+    tabManager.setActiveSpace(spaceId);
+  }
+}
+
 async function createWindow() {
   await windowShell.createWindow();
 
-  if (config.jiraUrl) {
-    const restoredSession =
-      runtimeOverrides.rawJiraUrl || !config.spaceId ? null : workspaceConfig.readSpaceSession(config.spaceId);
+  const spaceId = activeSpaceIdForConfig();
 
-    if (!tabManager.restorePersistedState(restoredSession)) {
-      tabManager.createTab(config.jiraUrl, { activate: true, title: "Jira" });
-    }
+  if (spaceId) {
+    hydrateSpace(spaceId, { activate: true });
   }
 
   windowShell.refreshShell();
@@ -234,8 +318,10 @@ ipcMain.handle("shell:save-workspace-url", (_event, rawJiraUrl) => {
     workspaceConfig.writeStoredWorkspaceUrl(normalizedUrl);
     config = workspaceConfig.loadConfig();
 
-    if (!tabManager.hasTabs()) {
-      tabManager.createTab(config.jiraUrl, { activate: true, title: "Jira" });
+    const spaceId = activeSpaceIdForConfig();
+
+    if (spaceId && !tabManager.hasTabsForSpace(spaceId)) {
+      hydrateSpace(spaceId, { activate: true });
     } else {
       windowShell.refreshShell();
     }
@@ -258,12 +344,19 @@ ipcMain.handle("shell:save-workspace-url", (_event, rawJiraUrl) => {
 });
 
 ipcMain.on("shell:new-tab", (_event, targetUrl) => {
-  if (!config.jiraUrl) {
+  const spaceId = activeSpaceIdForConfig();
+
+  if (!config.jiraUrl || !spaceId) {
     windowShell.sendState();
     return;
   }
 
-  tabManager.createTab(targetUrl || config.jiraUrl, { activate: true, title: "Jira" });
+  tabManager.createTab(targetUrl || config.jiraUrl, {
+    activate: true,
+    title: "Jira",
+    spaceId,
+    partition: partitionForSpaceId(spaceId)
+  });
 });
 
 ipcMain.on("shell:switch-tab", (_event, tabId) => {
@@ -272,7 +365,7 @@ ipcMain.on("shell:switch-tab", (_event, tabId) => {
 
 ipcMain.on("shell:close-tab", (_event, tabId) => {
   tabManager.closeTab(tabId, {
-    getHomeUrl: () => config.jiraUrl
+    getHomeUrl: (spaceId) => getSpaceHomeUrl(spaceId)
   });
 });
 

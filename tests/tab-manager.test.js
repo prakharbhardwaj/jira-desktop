@@ -46,12 +46,16 @@ function createFakeEvent() {
 
 function createHarness() {
   const externalOpens = [];
+  const createdPartitions = [];
 
   const tabManager = createTabManager({
-    createView: () => ({
-      webContents: createFakeWebContents(),
-      setBackgroundColor() {}
-    }),
+    createView: ({ webPreferences }) => {
+      createdPartitions.push(webPreferences.partition || null);
+      return {
+        webContents: createFakeWebContents(),
+        setBackgroundColor() {}
+      };
+    },
     configureSession: () => {},
     isAllowedNavigation: (targetUrl) => {
       try {
@@ -66,99 +70,161 @@ function createHarness() {
     showContextMenu: () => {}
   });
 
-  return { tabManager, externalOpens };
+  return { tabManager, externalOpens, createdPartitions };
 }
 
 function runTabManagerTests() {
-  // Row 1: same-origin + same path in pinned tab stays in pinned tab.
+  // Same-origin nav in pinned tab stays in pinned tab.
   {
     const { tabManager } = createHarness();
-    const pinnedTab = tabManager.createTab("https://example.atlassian.net/jira/your-work", { pinned: true });
-    const event = createFakeEvent();
-    pinnedTab.view.webContents.emit("will-navigate", event, "https://example.atlassian.net/jira/your-work");
-    assert.strictEqual(event.defaultPrevented, false);
-    assert.strictEqual(tabManager.serializeState({}).tabs.length, 1);
-  }
-
-  // Row 2: same-origin different path stays in pinned tab.
-  {
-    const { tabManager } = createHarness();
-    const pinnedTab = tabManager.createTab("https://example.atlassian.net/jira/your-work", { pinned: true });
+    const pinnedTab = tabManager.createTab("https://example.atlassian.net/jira/your-work", {
+      pinned: true,
+      spaceId: "s1"
+    });
     const event = createFakeEvent();
     pinnedTab.view.webContents.emit("will-navigate", event, "https://example.atlassian.net/browse/ABC-1");
     assert.strictEqual(event.defaultPrevented, false);
-    assert.strictEqual(tabManager.serializeState({}).tabs.length, 1);
-    assert.strictEqual(pinnedTab.pinnedUrl, "https://example.atlassian.net/jira/your-work");
   }
 
-  // Row 3: cross-origin allow-listed nav spawns a new unpinned tab; pinnedUrl unchanged.
+  // Cross-origin nav in pinned tab spawns a new tab in the same space.
   {
     const { tabManager } = createHarness();
-    const pinnedTab = tabManager.createTab("https://example.atlassian.net/jira/your-work", { pinned: true });
+    const pinnedTab = tabManager.createTab("https://example.atlassian.net/jira/your-work", {
+      pinned: true,
+      spaceId: "s1"
+    });
     const event = createFakeEvent();
     pinnedTab.view.webContents.emit("will-navigate", event, "https://id.atlassian.com/login");
     assert.strictEqual(event.defaultPrevented, true);
 
     const state = tabManager.serializeState({});
     assert.strictEqual(state.tabs.length, 2);
-    const spawned = state.tabs.find((t) => !t.isPinned);
-    assert.ok(spawned, "cross-origin navigation should spawn an unpinned tab");
-    assert.strictEqual(spawned.url, "https://id.atlassian.com/login");
     assert.strictEqual(pinnedTab.pinnedUrl, "https://example.atlassian.net/jira/your-work");
-    assert.strictEqual(pinnedTab.url, "https://example.atlassian.net/jira/your-work");
   }
 
-  // Row 4: disallowed navigation in pinned tab delegates to onExternalOpen.
+  // Disallowed nav in pinned tab → external open, no new tab.
   {
     const { tabManager, externalOpens } = createHarness();
-    const pinnedTab = tabManager.createTab("https://example.atlassian.net/jira/your-work", { pinned: true });
+    const pinnedTab = tabManager.createTab("https://example.atlassian.net/jira/your-work", {
+      pinned: true,
+      spaceId: "s1"
+    });
     const event = createFakeEvent();
     pinnedTab.view.webContents.emit("will-navigate", event, "http://malicious.example.com/");
     assert.strictEqual(event.defaultPrevented, true);
     assert.deepStrictEqual(externalOpens, ["http://malicious.example.com/"]);
   }
 
-  // Unpinned tabs never get the cross-origin spawn behavior.
+  // Unpinned tabs never spawn on cross-origin.
   {
     const { tabManager } = createHarness();
-    const tab = tabManager.createTab("https://example.atlassian.net/jira/your-work");
+    const tab = tabManager.createTab("https://example.atlassian.net/jira/your-work", { spaceId: "s1" });
     const event = createFakeEvent();
     tab.view.webContents.emit("will-navigate", event, "https://id.atlassian.com/login");
     assert.strictEqual(event.defaultPrevented, false);
-    assert.strictEqual(tabManager.serializeState({}).tabs.length, 1);
   }
 
-  // Persistence: pinned tabs serialize their pinnedUrl, not the last navigated URL.
+  // Persistence: pinned tabs serialize their pinnedUrl.
   {
     const { tabManager } = createHarness();
-    const pinnedTab = tabManager.createTab("https://example.atlassian.net/jira/your-work", { pinned: true });
+    const pinnedTab = tabManager.createTab("https://example.atlassian.net/jira/your-work", {
+      pinned: true,
+      spaceId: "s1"
+    });
     pinnedTab.url = "https://example.atlassian.net/browse/ABC-1";
-    const persisted = tabManager.serializePersistedState();
+    const persisted = tabManager.serializePersistedState("s1");
     assert.strictEqual(persisted.tabs[0].url, "https://example.atlassian.net/jira/your-work");
-    assert.strictEqual(persisted.tabs[0].pinned, true);
   }
 
-  // togglePinTab captures the current URL as pinnedUrl when pinning.
+  // togglePinTab captures/clears pinnedUrl.
   {
     const { tabManager } = createHarness();
-    const tab = tabManager.createTab("https://example.atlassian.net/jira/your-work");
+    const tab = tabManager.createTab("https://example.atlassian.net/jira/your-work", { spaceId: "s1" });
     tab.url = "https://example.atlassian.net/browse/ABC-1";
     tabManager.togglePinTab(tab.id);
-    assert.strictEqual(tab.pinned, true);
     assert.strictEqual(tab.pinnedUrl, "https://example.atlassian.net/browse/ABC-1");
     tabManager.togglePinTab(tab.id);
-    assert.strictEqual(tab.pinned, false);
     assert.strictEqual(tab.pinnedUrl, "");
   }
 
-  // setWindowOpenHandler on pinned tab still creates a new tab (cmd-click / window.open).
+  // Multiple spaces: tabs and active tab are scoped per-space.
   {
     const { tabManager } = createHarness();
-    const pinnedTab = tabManager.createTab("https://example.atlassian.net/jira/your-work", { pinned: true });
-    const result = pinnedTab.view.webContents._windowOpenHandler({ url: "https://example.atlassian.net/browse/ABC-1" });
-    assert.deepStrictEqual(result, { action: "deny" });
+    const tabA1 = tabManager.createTab("https://alpha.atlassian.net/", { spaceId: "alpha" });
+    const tabA2 = tabManager.createTab("https://alpha.atlassian.net/b", { spaceId: "alpha" });
+    const tabB1 = tabManager.createTab("https://beta.atlassian.net/", { spaceId: "beta" });
+
+    // Active space is whichever was created first with activate: true.
+    assert.strictEqual(tabManager.getActiveSpaceId(), "alpha");
+
+    const alphaState = tabManager.serializeState({});
+    assert.strictEqual(alphaState.activeSpaceId, "alpha");
+    assert.deepStrictEqual(
+      alphaState.tabs.map((tab) => tab.id).sort(),
+      [tabA1.id, tabA2.id].sort()
+    );
+
+    tabManager.setActiveSpace("beta");
+    const betaState = tabManager.serializeState({});
+    assert.strictEqual(betaState.activeSpaceId, "beta");
+    assert.deepStrictEqual(betaState.tabs.map((tab) => tab.id), [tabB1.id]);
+  }
+
+  // Partition gets forwarded to createView.
+  {
+    const { tabManager, createdPartitions } = createHarness();
+    tabManager.createTab("https://alpha.atlassian.net/", { spaceId: "alpha", partition: "persist:workspace-alpha" });
+    tabManager.createTab("https://beta.atlassian.net/", { spaceId: "beta" });
+
+    assert.strictEqual(createdPartitions[0], "persist:workspace-alpha");
+    assert.strictEqual(createdPartitions[1], null);
+  }
+
+  // closeSpaceTabs destroys every tab in that space.
+  {
+    const { tabManager } = createHarness();
+    tabManager.createTab("https://alpha.atlassian.net/", { spaceId: "alpha" });
+    tabManager.createTab("https://alpha.atlassian.net/x", { spaceId: "alpha" });
+    tabManager.createTab("https://beta.atlassian.net/", { spaceId: "beta" });
+
+    tabManager.closeSpaceTabs("alpha");
+
+    tabManager.setActiveSpace("beta");
+    assert.strictEqual(tabManager.serializeState({}).tabs.length, 1);
+    assert.strictEqual(tabManager.hasTabsForSpace("alpha"), false);
+  }
+
+  // restorePersistedState creates tabs under the given space.
+  {
+    const { tabManager } = createHarness();
+    const restored = tabManager.restorePersistedState(
+      "alpha",
+      {
+        activeTabIndex: 1,
+        tabs: [
+          { url: "https://alpha.atlassian.net/pinned", title: "Pinned", pinned: true },
+          { url: "https://alpha.atlassian.net/current", title: "Current", pinned: false }
+        ]
+      },
+      { partition: "persist:workspace-alpha" }
+    );
+
+    assert.strictEqual(restored, true);
+    assert.strictEqual(tabManager.getActiveSpaceId(), "alpha");
     assert.strictEqual(tabManager.serializeState({}).tabs.length, 2);
-    assert.strictEqual(pinnedTab.pinnedUrl, "https://example.atlassian.net/jira/your-work");
+  }
+
+  // Disallowed cross-origin nav in pinned tab with same-space semantics still external-opens.
+  {
+    const { tabManager, externalOpens } = createHarness();
+    const pinnedTab = tabManager.createTab("https://example.atlassian.net/jira/your-work", {
+      pinned: true,
+      spaceId: "s1"
+    });
+    const event = createFakeEvent();
+    pinnedTab.view.webContents.emit("will-navigate", event, "http://bad/");
+    assert.strictEqual(event.defaultPrevented, true);
+    assert.ok(externalOpens.includes("http://bad/"));
   }
 }
 

@@ -186,7 +186,8 @@ async function run() {
     assert.strictEqual(targetUrl, NORMALIZED_JIRA_URL);
     assert.strictEqual(await retryButton.isVisible(), true);
     const persistedWorkspace = JSON.parse(fs.readFileSync(path.join(configDirectory, WORKSPACE_CONFIG_FILENAME), "utf8"));
-    assert.strictEqual(persistedWorkspace.jiraUrl, NORMALIZED_JIRA_URL);
+    assert.strictEqual(persistedWorkspace.schemaVersion, 2);
+    assert.strictEqual(persistedWorkspace.spaces[0].jiraUrl, NORMALIZED_JIRA_URL);
 
     const retryState = await window.evaluate(() => {
       const button = document.getElementById("retry-button");

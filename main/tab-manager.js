@@ -1,5 +1,5 @@
 const DEFAULT_TAB_TITLE = "Loading...";
-const VIEW_WEB_PREFERENCES = {
+const BASE_WEB_PREFERENCES = {
   contextIsolation: true,
   sandbox: true,
   nodeIntegration: false,
@@ -57,22 +57,44 @@ function createTabManager({
 }) {
   let nextTabId = 1;
   const tabs = new Map();
-  let activeTabId = null;
+  let activeSpaceId = null;
+  const activeTabIdBySpace = new Map();
 
   function getTab(tabId) {
     return tabs.get(tabId) || null;
   }
 
-  function getActiveTab() {
-    return getTab(activeTabId);
+  function getSpaceTabs(spaceId) {
+    return Array.from(tabs.values()).filter((tab) => tab.spaceId === spaceId);
   }
 
-  function hasTabs() {
+  function getActiveTab() {
+    if (!activeSpaceId) return null;
+
+    const tabId = activeTabIdBySpace.get(activeSpaceId);
+
+    return tabId ? getTab(tabId) : null;
+  }
+
+  function hasAnyTabs() {
     return tabs.size > 0;
   }
 
+  function hasTabsForSpace(spaceId) {
+    return getSpaceTabs(spaceId).length > 0;
+  }
+
+  function getActiveSpaceId() {
+    return activeSpaceId;
+  }
+
   function serializeState(config) {
+    const spaceId = activeSpaceId;
+    const activeTabs = spaceId ? getSpaceTabs(spaceId) : [];
+    const activeTabId = spaceId ? activeTabIdBySpace.get(spaceId) || null : null;
+
     return {
+      activeSpaceId: spaceId,
       activeTabId,
       setup: {
         required: !config.jiraUrl,
@@ -80,7 +102,7 @@ function createTabManager({
         errorMessage: config.setupError,
         value: config.setupValue
       },
-      tabs: Array.from(tabs.values())
+      tabs: activeTabs
         .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
         .map((tab) => ({
           id: tab.id,
@@ -90,28 +112,31 @@ function createTabManager({
           hasLoadedOnce: tab.hasLoadedOnce,
           errorMessage: tab.errorMessage,
           isActive: tab.id === activeTabId,
-          isClosable: tabs.size > 1 && !tab.pinned,
+          isClosable: activeTabs.length > 1 && !tab.pinned,
           isPinned: tab.pinned
         }))
     };
   }
 
-  function serializePersistedState() {
-    const persistedTabs = Array.from(tabs.values()).map((tab) => ({
-      url: tab.pinned && tab.pinnedUrl ? tab.pinnedUrl : tab.url,
-      title: tab.title,
-      pinned: tab.pinned
-    }));
+  function serializePersistedState(spaceId) {
+    const targetSpaceId = spaceId || activeSpaceId;
 
-    if (persistedTabs.length === 0) {
-      return null;
-    }
+    if (!targetSpaceId) return null;
 
-    const activeTabIndex = Array.from(tabs.keys()).findIndex((tabId) => tabId === activeTabId);
+    const spaceTabs = getSpaceTabs(targetSpaceId);
+
+    if (spaceTabs.length === 0) return null;
+
+    const activeTabId = activeTabIdBySpace.get(targetSpaceId);
+    const activeIndex = spaceTabs.findIndex((tab) => tab.id === activeTabId);
 
     return {
-      activeTabIndex: activeTabIndex >= 0 ? activeTabIndex : 0,
-      tabs: persistedTabs
+      activeTabIndex: activeIndex >= 0 ? activeIndex : 0,
+      tabs: spaceTabs.map((tab) => ({
+        url: tab.pinned && tab.pinnedUrl ? tab.pinnedUrl : tab.url,
+        title: tab.title,
+        pinned: tab.pinned
+      }))
     };
   }
 
@@ -120,11 +145,23 @@ function createTabManager({
   }
 
   function activateTab(tabId) {
-    if (!tabs.has(tabId)) {
-      return;
+    const tab = getTab(tabId);
+
+    if (!tab) return;
+
+    activeTabIdBySpace.set(tab.spaceId, tab.id);
+
+    if (tab.spaceId !== activeSpaceId) {
+      activeSpaceId = tab.spaceId;
     }
 
-    activeTabId = tabId;
+    notifyStateChanged();
+  }
+
+  function setActiveSpace(spaceId) {
+    if (activeSpaceId === spaceId) return;
+
+    activeSpaceId = spaceId;
     notifyStateChanged();
   }
 
@@ -157,7 +194,7 @@ function createTabManager({
 
     webContents.setWindowOpenHandler(({ url }) => {
       if (isAllowedNavigation(url)) {
-        createTab(url, { activate: true });
+        createTab(url, { activate: true, spaceId: tab.spaceId, partition: tab.partition });
       } else {
         onExternalOpen(url);
       }
@@ -174,7 +211,7 @@ function createTabManager({
 
       if (shouldSpawnOnNavigation(tab, url)) {
         event.preventDefault();
-        createTab(url, { activate: true });
+        createTab(url, { activate: true, spaceId: tab.spaceId, partition: tab.partition });
       }
     });
 
@@ -237,15 +274,25 @@ function createTabManager({
   }
 
   function createTab(targetUrl, options = {}) {
-    const view = createView({
-      webPreferences: VIEW_WEB_PREFERENCES
-    });
+    const spaceId = options.spaceId || activeSpaceId;
+
+    if (!spaceId) {
+      return null;
+    }
+
+    const partition = options.partition || null;
+    const viewWebPreferences = partition
+      ? { ...BASE_WEB_PREFERENCES, partition }
+      : { ...BASE_WEB_PREFERENCES };
+    const view = createView({ webPreferences: viewWebPreferences });
 
     configureSession(view.webContents.session);
 
     const normalizedUrl = normalizeUrl(targetUrl).toString();
     const tab = {
       id: `tab-${nextTabId++}`,
+      spaceId,
+      partition,
       view,
       title: options.title || DEFAULT_TAB_TITLE,
       url: normalizedUrl,
@@ -261,7 +308,11 @@ function createTabManager({
     attachTabHandlers(tab);
 
     if (options.activate !== false) {
-      activeTabId = tab.id;
+      activeTabIdBySpace.set(spaceId, tab.id);
+
+      if (!activeSpaceId) {
+        activeSpaceId = spaceId;
+      }
     }
 
     notifyStateChanged();
@@ -281,26 +332,28 @@ function createTabManager({
   function closeTab(tabId, options = {}) {
     const tab = getTab(tabId);
 
-    if (!tab) {
-      return;
-    }
+    if (!tab) return;
+    if (tab.pinned) return;
 
-    if (tab.pinned) {
-      return;
-    }
-
-    const wasActive = tab.id === activeTabId;
+    const spaceId = tab.spaceId;
+    const wasActiveInSpace = activeTabIdBySpace.get(spaceId) === tab.id;
 
     destroyTabView(tab);
     tabs.delete(tab.id);
 
-    if (tabs.size === 0) {
-      activeTabId = null;
+    const remaining = getSpaceTabs(spaceId);
 
-      const homeUrl = typeof options.getHomeUrl === "function" ? options.getHomeUrl() : "";
+    if (remaining.length === 0) {
+      activeTabIdBySpace.delete(spaceId);
+
+      const homeUrl = typeof options.getHomeUrl === "function" ? options.getHomeUrl(spaceId) : "";
 
       if (homeUrl) {
-        createTab(homeUrl, { activate: true });
+        createTab(homeUrl, {
+          activate: spaceId === activeSpaceId,
+          spaceId,
+          partition: tab.partition
+        });
       } else {
         notifyStateChanged();
       }
@@ -308,9 +361,8 @@ function createTabManager({
       return;
     }
 
-    if (wasActive) {
-      const fallbackTab = Array.from(tabs.values())[Math.max(tabs.size - 1, 0)];
-      activeTabId = fallbackTab.id;
+    if (wasActiveInSpace) {
+      activeTabIdBySpace.set(spaceId, remaining[remaining.length - 1].id);
     }
 
     notifyStateChanged();
@@ -334,21 +386,22 @@ function createTabManager({
   function reloadActiveTab(homeUrl, options = {}) {
     const activeTab = getActiveTab();
 
-    if (activeTab) {
-      if (options.ignoreCache) {
-        activeTab.status = "loading";
-        activeTab.lastLoadFailed = false;
-        activeTab.errorMessage = "";
-        notifyStateChanged();
-        activeTab.view.webContents.reloadIgnoringCache();
-        return;
-      }
+    if (!activeTab) return;
 
-      loadTab(activeTab, activeTab.url || homeUrl);
+    if (options.ignoreCache) {
+      activeTab.status = "loading";
+      activeTab.lastLoadFailed = false;
+      activeTab.errorMessage = "";
+      notifyStateChanged();
+      activeTab.view.webContents.reloadIgnoringCache();
+      return;
     }
+
+    loadTab(activeTab, activeTab.url || homeUrl);
   }
 
-  function restorePersistedState(sessionState) {
+  function restorePersistedState(spaceId, sessionState, options = {}) {
+    if (!spaceId) return false;
     if (!sessionState || !Array.isArray(sessionState.tabs) || sessionState.tabs.length === 0) {
       return false;
     }
@@ -366,19 +419,42 @@ function createTabManager({
       }
 
       createTab(tab.url, {
-        activate: index === activeTabIndex,
+        activate: index === activeTabIndex && (options.activate !== false),
+        partition: options.partition,
         pinned: !!tab.pinned,
+        spaceId,
         title: typeof tab.title === "string" && tab.title.trim() ? tab.title.trim() : DEFAULT_TAB_TITLE
       });
     }
 
-    if (!activeTabId) {
-      const firstTab = Array.from(tabs.values())[0];
-      activeTabId = firstTab ? firstTab.id : null;
-      notifyStateChanged();
+    if (!activeTabIdBySpace.has(spaceId)) {
+      const spaceTabs = getSpaceTabs(spaceId);
+
+      if (spaceTabs.length > 0) {
+        activeTabIdBySpace.set(spaceId, spaceTabs[0].id);
+      }
     }
 
-    return hasTabs();
+    if (!activeSpaceId && options.activate !== false) {
+      activeSpaceId = spaceId;
+    }
+
+    return hasTabsForSpace(spaceId);
+  }
+
+  function closeSpaceTabs(spaceId) {
+    for (const tab of getSpaceTabs(spaceId)) {
+      destroyTabView(tab);
+      tabs.delete(tab.id);
+    }
+
+    activeTabIdBySpace.delete(spaceId);
+
+    if (activeSpaceId === spaceId) {
+      activeSpaceId = null;
+    }
+
+    notifyStateChanged();
   }
 
   function cleanup() {
@@ -389,21 +465,26 @@ function createTabManager({
     }
 
     tabs.clear();
-    activeTabId = null;
+    activeTabIdBySpace.clear();
+    activeSpaceId = null;
   }
 
   return {
     activateTab,
     cleanup,
+    closeSpaceTabs,
     closeTab,
     createTab,
+    getActiveSpaceId,
     getActiveTab,
     getTab,
-    hasTabs,
+    hasTabs: hasAnyTabs,
+    hasTabsForSpace,
     reloadActiveTab,
     restorePersistedState,
-    serializeState,
     serializePersistedState,
+    serializeState,
+    setActiveSpace,
     togglePinTab
   };
 }
