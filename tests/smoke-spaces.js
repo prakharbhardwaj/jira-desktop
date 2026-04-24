@@ -47,9 +47,9 @@ async function closeApp(electronApp) {
   await electronApp.close();
 }
 
-async function waitForRailCount(window, expected) {
+async function waitForDotCount(window, expected) {
   await window.waitForFunction(
-    ({ count }) => document.querySelectorAll(".space-rail-item").length === count,
+    ({ count }) => document.querySelectorAll(".workspace-dot").length === count,
     { count: expected }
   );
 }
@@ -66,7 +66,7 @@ async function run() {
     let window = await electronApp.firstWindow();
 
     // 1. Legacy workspace.json is migrated to schema v2 with one default space.
-    await window.waitForFunction(() => document.querySelectorAll(".space-rail-item").length === 1);
+    await window.waitForFunction(() => document.querySelectorAll(".workspace-dot").length === 1);
     let persisted = readWorkspaceFile(configDirectory);
     assert.strictEqual(persisted.schemaVersion, 2, "schema migrated to v2");
     assert.strictEqual(persisted.spaces.length, 1);
@@ -82,7 +82,7 @@ async function run() {
     );
     assert.strictEqual(addResult.ok, true, "addSpace should succeed");
     const betaSpaceId = addResult.space.id;
-    await waitForRailCount(window, 2);
+    await waitForDotCount(window, 2);
 
     // Switch to the new space.
     let switchResult = await window.evaluate(async (id) => window.jiraDesktop.switchSpace(id), betaSpaceId);
@@ -131,15 +131,21 @@ async function run() {
     });
 
     await window.waitForFunction(() => {
-      const active = document.querySelector(".space-rail-item.is-active");
+      const active = document.querySelector(".workspace-dot.is-active");
       return active && active.dataset.spaceId === "default";
     });
+
+    assert.strictEqual(
+      await window.locator("#sidebar-workspace-name").textContent(),
+      "alpha",
+      "sidebar header shows the active workspace name"
+    );
 
     // 6. Restart — assert sessions per space and active space persist.
     await closeApp(electronApp);
     electronApp = await launch(configDirectory);
     window = await electronApp.firstWindow();
-    await waitForRailCount(window, 2);
+    await waitForDotCount(window, 2);
     persisted = readWorkspaceFile(configDirectory);
     assert.strictEqual(persisted.spaces.length, 2);
     assert.strictEqual(persisted.activeSpaceId, "default");
@@ -152,7 +158,7 @@ async function run() {
     // 7. Delete the beta space and verify partition storage is wiped.
     const deleteResult = await window.evaluate(async (id) => window.jiraDesktop.deleteSpace(id), betaSpaceId);
     assert.strictEqual(deleteResult.ok, true);
-    await waitForRailCount(window, 1);
+    await waitForDotCount(window, 1);
 
     const cookiesAfterDelete = await electronApp.evaluate(
       async ({ session }, { betaPartition }) => {

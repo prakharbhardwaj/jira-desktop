@@ -20,8 +20,7 @@
   --radius-md: 10px;
   --radius-lg: 16px;
   --radius-pill: 999px;
-  --sidebar-width: 220px;
-  --space-rail-width: 48px;
+  --sidebar-width: 240px;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   font-family: -apple-system, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
 }
@@ -69,119 +68,15 @@ body {
   position: relative;
 }
 
-/* ── Space rail (always visible) ──────────────────────── */
+/* ── Sidebar trigger (left edge hover zone) ───────────── */
 
-.space-rail {
+.sidebar-trigger {
   position: fixed;
   top: 0;
   left: 0;
   bottom: 0;
-  width: var(--space-rail-width);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 0 10px;
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--sidebar-border);
-  z-index: 98;
-  -webkit-app-region: drag;
-}
-
-.space-rail-list {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding-top: 24px;
-  width: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  flex: 1;
-  scrollbar-width: none;
-}
-
-.space-rail-list::-webkit-scrollbar {
-  display: none;
-}
-
-.space-rail-item {
-  position: relative;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition:
-    transform 0.12s ease,
-    box-shadow 0.15s ease;
-  -webkit-app-region: no-drag;
-  overflow: hidden;
-  line-height: 1;
-}
-
-.space-rail-item:hover {
-  transform: scale(1.06);
-}
-
-.space-rail-item::after {
-  content: "";
-  position: absolute;
-  left: -8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 0;
-  border-radius: 0 2px 2px 0;
-  background: var(--accent);
-  transition: height 0.18s ease;
-}
-
-.space-rail-item.is-active::after {
-  height: 20px;
-}
-
-.space-rail-item.is-active {
-  box-shadow: 0 0 0 2px var(--sidebar-bg), 0 0 0 4px currentColor;
-}
-
-.space-rail-add {
-  margin-top: 8px;
-  width: 32px;
-  height: 32px;
-  border: 1px dashed rgba(148, 163, 184, 0.3);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition:
-    color 0.15s ease,
-    border-color 0.15s ease,
-    background 0.15s ease;
-  -webkit-app-region: no-drag;
-  flex-shrink: 0;
-}
-
-.space-rail-add:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: rgba(56, 189, 248, 0.06);
-}
-
-.space-rail-add:focus-visible,
-.space-rail-item:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-[data-single-space="true"] .space-rail-add {
-  opacity: 0.6;
+  width: 6px;
+  z-index: 100;
 }
 
 /* ── Sidebar ──────────────────────────────────────────── */
@@ -189,7 +84,7 @@ body {
 .sidebar {
   position: fixed;
   top: 0;
-  left: var(--space-rail-width);
+  left: 0;
   bottom: 0;
   width: var(--sidebar-width);
   display: flex;
@@ -226,40 +121,44 @@ body[data-view="error"] .sidebar {
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px;
+  gap: 6px;
+  padding: 12px 10px 10px 70px;
   border-bottom: 1px solid var(--sidebar-border);
   flex-shrink: 0;
   -webkit-app-region: drag;
 }
 
-.brand-icon {
+.sidebar-workspace {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-workspace-accent {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
   flex-shrink: 0;
 }
 
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 8px;
-  border-radius: var(--radius-pill);
-  background: rgba(56, 189, 248, 0.1);
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+.sidebar-workspace-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-[data-theme="light"] .badge {
-  background: rgba(37, 99, 235, 0.08);
-}
-
-/* ── Sidebar brand actions (lock, theme) ──────────────── */
+/* ── Sidebar brand actions (theme, deep link) ─────────── */
 
 .sidebar-brand-actions {
   display: flex;
   gap: 2px;
-  margin-left: auto;
   -webkit-app-region: no-drag;
 }
 
@@ -522,6 +421,94 @@ body[data-view="error"] .sidebar {
   outline-offset: 2px;
 }
 
+/* ── Workspace switcher (Arc-style dots) ──────────────── */
+
+.workspace-bar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.workspace-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 4px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  touch-action: pan-x;
+  -webkit-app-region: no-drag;
+}
+
+.workspace-dots::-webkit-scrollbar {
+  display: none;
+}
+
+.workspace-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(148, 163, 184, 0.35);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition:
+    background 0.15s ease,
+    transform 0.12s ease,
+    box-shadow 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.workspace-dot:hover {
+  transform: scale(1.2);
+  background: rgba(148, 163, 184, 0.55);
+}
+
+.workspace-dot.is-active {
+  background: var(--dot-color, var(--accent));
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.15);
+}
+
+.workspace-dot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+[data-single-space="true"] .workspace-dots {
+  visibility: hidden;
+}
+
+.workspace-add {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+  -webkit-app-region: no-drag;
+}
+
+.workspace-add:hover {
+  background: var(--tab-hover-bg);
+  color: var(--accent);
+}
+
+.workspace-add:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ── Stage / status layer ─────────────────────────────── */
 
 .stage {
@@ -542,7 +529,7 @@ body[data-view="error"] .sidebar {
 body[data-view="loading"] .stage,
 body[data-view="setup"] .stage,
 body[data-view="error"] .stage {
-  padding-left: calc(var(--sidebar-width) + var(--space-rail-width) + 32px);
+  padding-left: calc(var(--sidebar-width) + 32px);
 }
 
 /* ── Card ─────────────────────────────────────────────── */

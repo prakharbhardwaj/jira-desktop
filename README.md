@@ -117,13 +117,14 @@ Jira Desktop can register itself as the handler for the `jira-desktop://` URL sc
 
 ## Spaces
 
-Jira Desktop supports multiple Jira accounts in one app. Each space has its own `WebContentsView` partition, so cookies, storage, and login state are fully isolated between spaces.
+Jira Desktop supports multiple Jira accounts in one app. Each workspace has its own `WebContentsView` partition, so cookies, storage, and login state are fully isolated.
 
-- The always-visible vertical rail on the left edge is the space switcher. Hover a space to expand the tab panel.
-- Click the `+` below the rail to add a new space — you'll be prompted for a name, Jira URL, accent color, and optional emoji.
-- Right-click any space indicator to edit or delete it. Deleting a space signs out of that Jira account on this device and purges its partition data; the last remaining space cannot be deleted.
-- v1.x users auto-migrate on first v2 launch: the existing workspace becomes your first space and keeps its cookies, so you stay logged in through the upgrade.
-- When `JIRA_URL` or `--jira-url` is set, spaces are disabled for that launch and the runtime URL becomes the single ephemeral workspace.
+- The active workspace name is shown at the top of the sidebar, with its accent color as a small dot next to it.
+- At the bottom of the sidebar, a row of colored dots represents every workspace — click a dot to switch. The `+` at the right adds a new workspace (name, Jira URL, accent color, optional emoji).
+- Two-finger horizontal swipe on a trackpad over the tab list also cycles between workspaces (previous / next with wrap).
+- Right-click any dot to edit or delete the workspace. Deleting signs you out of that Jira account on this device and purges its partition data; the last remaining workspace cannot be deleted.
+- v1.x users auto-migrate on first v2 launch: the existing workspace becomes your first entry and keeps its cookies, so you stay logged in through the upgrade.
+- When `JIRA_URL` or `--jira-url` is set, workspaces are disabled for that launch and the runtime URL becomes the single ephemeral workspace — the `+` button is hidden.
 
 ## Keyboard Shortcuts
 

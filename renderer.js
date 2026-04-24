@@ -12,9 +12,12 @@ const progressBar = document.getElementById("progress-bar");
 const cardIcon = document.getElementById("card-icon");
 const retryButton = document.getElementById("retry-button");
 const sidebar = document.getElementById("sidebar");
-const spaceRail = document.getElementById("space-rail");
-const spaceRailList = document.getElementById("space-rail-list");
-const spaceRailAdd = document.getElementById("space-rail-add");
+const sidebarTrigger = document.getElementById("sidebar-trigger");
+const workspaceDots = document.getElementById("workspace-dots");
+const workspaceAdd = document.getElementById("workspace-add");
+const workspaceNameEl = document.getElementById("sidebar-workspace-name");
+const workspaceAccentEl = document.getElementById("sidebar-workspace-accent");
+const tabStripContainer = document.getElementById("tab-strip");
 const spaceMenu = document.getElementById("space-menu");
 const spaceModal = document.getElementById("space-modal");
 const spaceModalForm = document.getElementById("space-modal-form");
@@ -121,13 +124,13 @@ function hideSidebar() {
 
 sidebarLockBtn.addEventListener("click", toggleSidebarLock);
 
-spaceRail.addEventListener("mouseenter", showSidebar);
+sidebarTrigger.addEventListener("mouseenter", showSidebar);
 sidebar.addEventListener("mouseenter", () => {
   clearTimeout(hideTimeout);
   showSidebar();
 });
 sidebar.addEventListener("mouseleave", hideSidebar);
-spaceRail.addEventListener("mouseleave", () => {
+sidebarTrigger.addEventListener("mouseleave", () => {
   if (!sidebar.matches(":hover")) {
     hideSidebar();
   }
@@ -495,49 +498,49 @@ void loadDeepLinkState();
 /* ── Spaces ───────────────────────────────────────────── */
 
 let spacesState = { spaces: [], activeSpaceId: null, palette: [], runtimeOverride: false };
+let lastSwipeAt = 0;
 
-function contrastColor(hex) {
-  const value = hex.replace("#", "");
-  if (value.length !== 6) return "#fff";
-  const r = parseInt(value.slice(0, 2), 16);
-  const g = parseInt(value.slice(2, 4), 16);
-  const b = parseInt(value.slice(4, 6), 16);
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 160 ? "#0f172a" : "#ffffff";
-}
-
-function deriveInitials(name) {
-  if (!name) return "JD";
-  const parts = name.trim().split(/\s+/).slice(0, 2);
-  return parts.map((part) => part.charAt(0).toUpperCase()).join("") || "JD";
+function activeSpace() {
+  return spacesState.spaces.find((entry) => entry.id === spacesState.activeSpaceId) || null;
 }
 
 function renderSpaces() {
-  spaceRailList.innerHTML = "";
+  workspaceDots.innerHTML = "";
 
   if (spacesState.runtimeOverride) {
-    spaceRailAdd.hidden = true;
-    spaceRail.setAttribute("aria-label", "Spaces (runtime override)");
+    workspaceAdd.hidden = true;
   } else {
-    spaceRailAdd.hidden = false;
-    spaceRail.setAttribute("aria-label", "Spaces");
+    workspaceAdd.hidden = false;
   }
 
   document.body.dataset.singleSpace = spacesState.spaces.length <= 1 ? "true" : "false";
 
   for (const space of spacesState.spaces) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `space-rail-item ${space.id === spacesState.activeSpaceId ? "is-active" : ""}`;
-    button.style.background = space.accent || "#2684ff";
-    button.style.color = contrastColor(space.accent || "#2684ff");
-    button.dataset.spaceId = space.id;
-    button.title = `${space.name}\n${space.jiraUrl}`;
-    button.setAttribute("role", "tab");
-    button.setAttribute("aria-selected", space.id === spacesState.activeSpaceId ? "true" : "false");
-    button.textContent = space.icon && space.icon.trim() ? space.icon : deriveInitials(space.name);
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = `workspace-dot ${space.id === spacesState.activeSpaceId ? "is-active" : ""}`;
+    dot.dataset.spaceId = space.id;
+    dot.style.setProperty("--dot-color", space.accent || "#2684ff");
+    dot.title = `${space.name}\n${space.jiraUrl}`;
+    dot.setAttribute("role", "tab");
+    dot.setAttribute("aria-label", space.name);
+    dot.setAttribute("aria-selected", space.id === spacesState.activeSpaceId ? "true" : "false");
 
-    spaceRailList.appendChild(button);
+    workspaceDots.appendChild(dot);
+  }
+
+  const active = activeSpace();
+
+  if (active) {
+    workspaceNameEl.textContent = active.name;
+    workspaceAccentEl.style.background = active.accent || "#2684ff";
+    workspaceAccentEl.hidden = false;
+  } else if (spacesState.runtimeOverride) {
+    workspaceNameEl.textContent = "Jira Desktop";
+    workspaceAccentEl.hidden = true;
+  } else {
+    workspaceNameEl.textContent = "Jira Desktop";
+    workspaceAccentEl.hidden = true;
   }
 }
 
@@ -551,32 +554,61 @@ async function reloadSpaces() {
   }
 }
 
-spaceRailList.addEventListener("click", async (event) => {
-  const item = event.target.closest("[data-space-id]");
-  if (!item) return;
-
-  const spaceId = item.dataset.spaceId;
-
-  if (spaceId === spacesState.activeSpaceId) return;
-
+async function switchToSpace(spaceId) {
+  if (!spaceId || spaceId === spacesState.activeSpaceId) return;
   const result = await window.jiraDesktop.switchSpace(spaceId);
 
   if (result && result.ok) {
     spacesState = { ...spacesState, ...result };
     renderSpaces();
   }
+}
+
+workspaceDots.addEventListener("click", (event) => {
+  const dot = event.target.closest("[data-space-id]");
+  if (!dot) return;
+  void switchToSpace(dot.dataset.spaceId);
 });
 
-spaceRailList.addEventListener("contextmenu", (event) => {
-  const item = event.target.closest("[data-space-id]");
-  if (!item) return;
+workspaceDots.addEventListener("contextmenu", (event) => {
+  const dot = event.target.closest("[data-space-id]");
+  if (!dot) return;
   event.preventDefault();
-  openSpaceMenu(item.dataset.spaceId, event.clientX, event.clientY);
+  openSpaceMenu(dot.dataset.spaceId, event.clientX, event.clientY);
 });
 
-spaceRailAdd.addEventListener("click", () => {
+workspaceAdd.addEventListener("click", () => {
   openSpaceModal({ mode: "add" });
 });
+
+function switchSpaceByOffset(offset) {
+  if (spacesState.runtimeOverride) return;
+  const count = spacesState.spaces.length;
+  if (count < 2) return;
+
+  const currentIndex = spacesState.spaces.findIndex((entry) => entry.id === spacesState.activeSpaceId);
+  const nextIndex = (((currentIndex < 0 ? 0 : currentIndex) + offset) % count + count) % count;
+  void switchToSpace(spacesState.spaces[nextIndex].id);
+}
+
+// Arc-style two-finger horizontal swipe on the tab list switches workspace.
+tabStripContainer.addEventListener(
+  "wheel",
+  (event) => {
+    const { deltaX, deltaY } = event;
+
+    if (Math.abs(deltaX) < 40) return;
+    if (Math.abs(deltaX) <= Math.abs(deltaY) * 1.8) return;
+
+    const now = Date.now();
+    if (now - lastSwipeAt < 450) return;
+
+    lastSwipeAt = now;
+    event.preventDefault();
+    switchSpaceByOffset(deltaX > 0 ? 1 : -1);
+  },
+  { passive: false }
+);
 
 /* ── Space context menu ───────────────────────────────── */
 
