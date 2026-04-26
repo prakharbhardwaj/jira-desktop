@@ -425,7 +425,7 @@ body[data-view="error"] .sidebar {
 
 .workspace-bar {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 8px;
   padding-top: 4px;
@@ -483,6 +483,7 @@ body[data-view="error"] .sidebar {
   visibility: hidden;
 }
 
+.workspace-delete,
 .workspace-add {
   width: 22px;
   height: 22px;
@@ -499,14 +500,33 @@ body[data-view="error"] .sidebar {
   -webkit-app-region: no-drag;
 }
 
+.workspace-delete:hover,
 .workspace-add:hover {
   background: var(--tab-hover-bg);
+}
+
+.workspace-delete:hover {
+  color: var(--danger);
+}
+
+.workspace-add:hover {
   color: var(--accent);
 }
 
+.workspace-delete:focus-visible,
 .workspace-add:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.workspace-delete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.workspace-delete:disabled:hover {
+  background: transparent;
+  color: var(--text-dim);
 }
 
 /* ── Stage / status layer ─────────────────────────────── */

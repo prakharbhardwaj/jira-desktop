@@ -13,8 +13,10 @@ const cardIcon = document.getElementById("card-icon");
 const retryButton = document.getElementById("retry-button");
 const sidebar = document.getElementById("sidebar");
 const sidebarTrigger = document.getElementById("sidebar-trigger");
+const workspaceBar = document.getElementById("workspace-bar");
 const workspaceDots = document.getElementById("workspace-dots");
 const workspaceAdd = document.getElementById("workspace-add");
+const workspaceDelete = document.getElementById("workspace-delete");
 const workspaceNameEl = document.getElementById("sidebar-workspace-name");
 const workspaceAccentEl = document.getElementById("sidebar-workspace-accent");
 const tabStripContainer = document.getElementById("tab-strip");
@@ -513,12 +515,22 @@ function activeSpace() {
 
 function renderSpaces() {
   workspaceDots.innerHTML = "";
+  const active = activeSpace();
+  const canDeleteActiveSpace = !spacesState.runtimeOverride && spacesState.spaces.length > 1 && !!active;
 
   if (spacesState.runtimeOverride) {
     workspaceAdd.hidden = true;
   } else {
     workspaceAdd.hidden = false;
   }
+
+  workspaceDelete.hidden = !canDeleteActiveSpace;
+  workspaceDelete.disabled = !canDeleteActiveSpace;
+  workspaceDelete.title = canDeleteActiveSpace
+    ? `Delete ${active.name}`
+    : spacesState.runtimeOverride
+      ? "Cannot delete workspaces while a runtime override is active"
+      : "Cannot delete the last remaining workspace";
 
   document.body.dataset.singleSpace = spacesState.spaces.length <= 1 ? "true" : "false";
 
@@ -535,8 +547,6 @@ function renderSpaces() {
 
     workspaceDots.appendChild(dot);
   }
-
-  const active = activeSpace();
 
   if (active) {
     workspaceNameEl.textContent = active.name;
@@ -586,6 +596,17 @@ workspaceDots.addEventListener("contextmenu", (event) => {
 
 workspaceAdd.addEventListener("click", () => {
   openSpaceModal({ mode: "add" });
+});
+
+workspaceDelete.addEventListener("click", () => {
+  const space = activeSpace();
+
+  if (!space || spacesState.runtimeOverride || spacesState.spaces.length <= 1) {
+    return;
+  }
+
+  closeSpaceMenu();
+  openDeleteModal(space);
 });
 
 function switchSpaceByOffset(offset) {
@@ -753,7 +774,7 @@ function openSpaceModal({ mode, space }) {
 
 function closeSpaceModal() {
   spaceModal.hidden = true;
-  if (!sidebar.matches(":hover") && !spaceRail.matches(":hover")) {
+  if (!sidebar.matches(":hover") && !workspaceBar.matches(":hover")) {
     hideSidebar();
   }
 }
@@ -820,7 +841,7 @@ function openDeleteModal(space) {
 function closeDeleteModal() {
   spaceDeleteModal.hidden = true;
   deleteTargetSpace = null;
-  if (!sidebar.matches(":hover") && !spaceRail.matches(":hover")) {
+  if (!sidebar.matches(":hover") && !workspaceBar.matches(":hover")) {
     hideSidebar();
   }
 }

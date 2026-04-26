@@ -48,10 +48,7 @@ async function closeApp(electronApp) {
 }
 
 async function waitForDotCount(window, expected) {
-  await window.waitForFunction(
-    ({ count }) => document.querySelectorAll(".workspace-dot").length === count,
-    { count: expected }
-  );
+  await window.waitForFunction(({ count }) => document.querySelectorAll(".workspace-dot").length === count, { count: expected });
 }
 
 async function run() {
@@ -76,10 +73,7 @@ async function run() {
     assert.strictEqual(persisted.spaces[0].session.tabs[0].pinned, true, "legacy pinned tab carried over");
 
     // 2. Add a second space via the renderer-exposed IPC.
-    let addResult = await window.evaluate(
-      async ({ url }) => window.jiraDesktop.addSpace({ name: "Beta", jiraUrl: url }),
-      { url: SECOND_SPACE_JIRA_URL }
-    );
+    let addResult = await window.evaluate(async ({ url }) => window.jiraDesktop.addSpace({ name: "Beta", jiraUrl: url }), { url: SECOND_SPACE_JIRA_URL });
     assert.strictEqual(addResult.ok, true, "addSpace should succeed");
     const betaSpaceId = addResult.space.id;
     await waitForDotCount(window, 2);
@@ -135,11 +129,7 @@ async function run() {
       return active && active.dataset.spaceId === "default";
     });
 
-    assert.strictEqual(
-      await window.locator("#sidebar-workspace-name").textContent(),
-      "alpha",
-      "sidebar header shows the active workspace name"
-    );
+    assert.strictEqual(await window.locator("#sidebar-workspace-name").textContent(), "alpha", "sidebar header shows the active workspace name");
 
     // 6. Restart — assert sessions per space and active space persist.
     await closeApp(electronApp);
@@ -155,10 +145,27 @@ async function run() {
     assert.strictEqual(betaPersisted.name, "Beta Renamed");
     assert.strictEqual(betaPersisted.accent, "#ff8b00");
 
-    // 7. Delete the beta space and verify partition storage is wiped.
-    const deleteResult = await window.evaluate(async (id) => window.jiraDesktop.deleteSpace(id), betaSpaceId);
-    assert.strictEqual(deleteResult.ok, true);
+    // 7. Delete the active workspace from the footer action and verify partition storage is wiped.
+    await window.evaluate(async (id) => {
+      await window.jiraDesktop.switchSpace(id);
+    }, betaSpaceId);
+    await window.waitForFunction((id) => {
+      const active = document.querySelector(".workspace-dot.is-active");
+      return active && active.dataset.spaceId === id;
+    }, betaSpaceId);
+    await window.evaluate(() => {
+      document.getElementById("workspace-delete").click();
+    });
+    await window.waitForFunction(() => !document.getElementById("space-delete-modal").hidden);
+    await window.evaluate(() => {
+      document.getElementById("space-delete-confirm").click();
+    });
     await waitForDotCount(window, 1);
+
+    await window.waitForFunction(() => {
+      const button = document.getElementById("workspace-delete");
+      return !!button && button.hidden;
+    });
 
     const cookiesAfterDelete = await electronApp.evaluate(
       async ({ session }, { betaPartition }) => {
