@@ -46,6 +46,14 @@
   "build": {
     "asar": true,
     "compression": "maximum",
+    "protocols": [
+      {
+        "name": "Jira Desktop Link",
+        "schemes": [
+          "jira-desktop"
+        ]
+      }
+    ],
     "directories": {
       "output": "dist"
     },

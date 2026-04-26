@@ -476,7 +476,7 @@ function applyDeepLinkState({ enabled, supported }) {
 
   deepLinkToggleBtn.hidden = false;
   deepLinkToggleBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
-  deepLinkToggleBtn.title = enabled ? "Open Jira links in this app: on" : "Open Jira links in this app: off";
+  deepLinkToggleBtn.title = enabled ? "jira-desktop:// links: on" : "jira-desktop:// links: off";
 }
 
 async function loadDeepLinkState() {
@@ -594,7 +594,7 @@ function switchSpaceByOffset(offset) {
   if (count < 2) return;
 
   const currentIndex = spacesState.spaces.findIndex((entry) => entry.id === spacesState.activeSpaceId);
-  const nextIndex = (((currentIndex < 0 ? 0 : currentIndex) + offset) % count + count) % count;
+  const nextIndex = ((((currentIndex < 0 ? 0 : currentIndex) + offset) % count) + count) % count;
   void switchToSpace(spacesState.spaces[nextIndex].id);
 }
 
