@@ -481,7 +481,7 @@ body[data-view="error"] .sidebar {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 14px;
   min-height: 22px;
   padding: 4px 0;
   overflow-x: auto;

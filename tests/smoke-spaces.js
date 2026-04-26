@@ -8,6 +8,7 @@ const APP_DIR = path.resolve(__dirname, "..");
 const WORKSPACE_CONFIG_FILENAME = "workspace.json";
 const LEGACY_JIRA_URL = "https://alpha.atlassian.net/";
 const SECOND_SPACE_JIRA_URL = "https://beta.atlassian.net/";
+const THIRD_SPACE_JIRA_URL = "https://gamma.atlassian.net/";
 
 function readWorkspaceFile(configDirectory) {
   return JSON.parse(fs.readFileSync(path.join(configDirectory, WORKSPACE_CONFIG_FILENAME), "utf8"));
@@ -76,7 +77,10 @@ async function run() {
     let addResult = await window.evaluate(async ({ url }) => window.jiraDesktop.addSpace({ name: "Beta", jiraUrl: url }), { url: SECOND_SPACE_JIRA_URL });
     assert.strictEqual(addResult.ok, true, "addSpace should succeed");
     const betaSpaceId = addResult.space.id;
-    await waitForDotCount(window, 2);
+    addResult = await window.evaluate(async ({ url }) => window.jiraDesktop.addSpace({ name: "Gamma", jiraUrl: url }), { url: THIRD_SPACE_JIRA_URL });
+    assert.strictEqual(addResult.ok, true, "addSpace should succeed for the third workspace");
+    const gammaSpaceId = addResult.space.id;
+    await waitForDotCount(window, 3);
 
     // Switch to the new space.
     let switchResult = await window.evaluate(async (id) => window.jiraDesktop.switchSpace(id), betaSpaceId);
@@ -131,21 +135,56 @@ async function run() {
 
     assert.strictEqual(await window.locator("#sidebar-workspace-name").textContent(), "alpha", "sidebar header shows the active workspace name");
 
-    // 6. Restart — assert sessions per space and active space persist.
+    // 6. Long continuous trackpad swipe only advances one workspace.
+    await window.evaluate(async () => {
+      const tabStrip = document.getElementById("tab-strip");
+
+      for (const deltaX of [25, 25, 25, 25, 25, 25, 25, 25, 25, 25]) {
+        tabStrip.dispatchEvent(
+          new WheelEvent("wheel", {
+            deltaX,
+            deltaY: 4,
+            bubbles: true,
+            cancelable: true
+          })
+        );
+
+        await new Promise((resolve) => {
+          setTimeout(resolve, 60);
+        });
+      }
+    });
+
+    await window.waitForFunction((id) => {
+      const active = document.querySelector(".workspace-dot.is-active");
+      return active && active.dataset.spaceId === id;
+    }, betaSpaceId);
+
+    assert.strictEqual(
+      await window.locator("#sidebar-workspace-name").textContent(),
+      "Beta Renamed",
+      "continuous horizontal swipe advances only one workspace"
+    );
+
+    const removeGammaResult = await window.evaluate(async (id) => window.jiraDesktop.deleteSpace(id), gammaSpaceId);
+    assert.strictEqual(removeGammaResult.ok, true, "deleteSpace should remove the extra workspace used for swipe coverage");
+    await waitForDotCount(window, 2);
+
+    // 7. Restart — assert sessions per space and active space persist.
     await closeApp(electronApp);
     electronApp = await launch(configDirectory);
     window = await electronApp.firstWindow();
     await waitForDotCount(window, 2);
     persisted = readWorkspaceFile(configDirectory);
     assert.strictEqual(persisted.spaces.length, 2);
-    assert.strictEqual(persisted.activeSpaceId, "default");
+    assert.strictEqual(persisted.activeSpaceId, betaSpaceId);
 
     const betaPersisted = persisted.spaces.find((space) => space.id === betaSpaceId);
     assert.ok(betaPersisted);
     assert.strictEqual(betaPersisted.name, "Beta Renamed");
     assert.strictEqual(betaPersisted.accent, "#ff8b00");
 
-    // 7. Delete the active workspace from the footer action and verify partition storage is wiped.
+    // 8. Delete the active workspace from the footer action and verify partition storage is wiped.
     await window.evaluate(async (id) => {
       await window.jiraDesktop.switchSpace(id);
     }, betaSpaceId);

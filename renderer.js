@@ -535,7 +535,36 @@ void loadDeepLinkState();
 /* ── Spaces ───────────────────────────────────────────── */
 
 let spacesState = { spaces: [], activeSpaceId: null, palette: [], runtimeOverride: false };
-let lastSwipeAt = 0;
+const SPACE_SWIPE_THRESHOLD = 120;
+const SPACE_SWIPE_RESET_MS = 140;
+let spaceSwipeDeltaX = 0;
+let spaceSwipeDirection = 0;
+let spaceSwipeConsumed = false;
+let spaceSwipeResetHandle = null;
+
+function resetSpaceSwipeGesture() {
+  spaceSwipeDeltaX = 0;
+  spaceSwipeDirection = 0;
+  spaceSwipeConsumed = false;
+
+  if (spaceSwipeResetHandle) {
+    window.clearTimeout(spaceSwipeResetHandle);
+    spaceSwipeResetHandle = null;
+  }
+}
+
+function scheduleSpaceSwipeReset() {
+  if (spaceSwipeResetHandle) {
+    window.clearTimeout(spaceSwipeResetHandle);
+  }
+
+  spaceSwipeResetHandle = window.setTimeout(() => {
+    spaceSwipeResetHandle = null;
+    spaceSwipeDeltaX = 0;
+    spaceSwipeDirection = 0;
+    spaceSwipeConsumed = false;
+  }, SPACE_SWIPE_RESET_MS);
+}
 
 function activeSpace() {
   return spacesState.spaces.find((entry) => entry.id === spacesState.activeSpaceId) || null;
@@ -652,16 +681,32 @@ tabStripContainer.addEventListener(
   "wheel",
   (event) => {
     const { deltaX, deltaY } = event;
+    const horizontalDistance = Math.abs(deltaX);
+    const verticalDistance = Math.abs(deltaY);
 
-    if (Math.abs(deltaX) < 40) return;
-    if (Math.abs(deltaX) <= Math.abs(deltaY) * 1.8) return;
+    if (horizontalDistance < 6) return;
+    if (horizontalDistance <= verticalDistance * 1.35) return;
 
-    const now = Date.now();
-    if (now - lastSwipeAt < 450) return;
-
-    lastSwipeAt = now;
     event.preventDefault();
-    switchSpaceByOffset(deltaX > 0 ? 1 : -1);
+    scheduleSpaceSwipeReset();
+
+    if (spaceSwipeConsumed) {
+      return;
+    }
+
+    const direction = Math.sign(deltaX);
+    if (spaceSwipeDirection && direction !== spaceSwipeDirection) {
+      spaceSwipeDeltaX = 0;
+    }
+
+    spaceSwipeDirection = direction;
+    spaceSwipeDeltaX += deltaX;
+    if (Math.abs(spaceSwipeDeltaX) < SPACE_SWIPE_THRESHOLD) return;
+
+    spaceSwipeConsumed = true;
+    spaceSwipeDeltaX = 0;
+    spaceSwipeDirection = 0;
+    switchSpaceByOffset(direction > 0 ? 1 : -1);
   },
   { passive: false }
 );
