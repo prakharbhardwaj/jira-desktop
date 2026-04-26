@@ -5,16 +5,7 @@ const DEFAULT_SETUP_MESSAGE = "Enter the Jira URL you want to use and Jira Deskt
 const WORKSPACE_CONFIG_FILENAME = "workspace.json";
 const DEFAULT_SPACE_ID = "default";
 const DEFAULT_PARTITION_FOR_DEFAULT_SPACE = null;
-const ACCENT_PALETTE = [
-  "#2684ff",
-  "#ff5630",
-  "#36b37e",
-  "#ffab00",
-  "#6554c0",
-  "#00b8d9",
-  "#ff8b00",
-  "#8777d9"
-];
+const ACCENT_PALETTE = ["#2684ff", "#ff5630", "#36b37e", "#ffab00", "#6554c0", "#00b8d9", "#ff8b00", "#8777d9"];
 
 function getCliArgument(argv, name) {
   const prefix = `${name}=`;
@@ -87,9 +78,7 @@ function normalizeSession(session) {
   }
 
   const activeTabIndex =
-    Number.isInteger(session.activeTabIndex) && session.activeTabIndex >= 0 && session.activeTabIndex < tabs.length
-      ? session.activeTabIndex
-      : 0;
+    Number.isInteger(session.activeTabIndex) && session.activeTabIndex >= 0 && session.activeTabIndex < tabs.length ? session.activeTabIndex : 0;
 
   return {
     activeTabIndex,
@@ -117,19 +106,11 @@ function normalizeSpace(rawSpace, fallbackAccent) {
     return null;
   }
 
-  const name =
-    typeof rawSpace.name === "string" && rawSpace.name.trim()
-      ? rawSpace.name.trim().slice(0, 30)
-      : deriveSpaceName(normalizedJiraUrl);
-  const accent =
-    typeof rawSpace.accent === "string" && /^#[0-9a-f]{6}$/i.test(rawSpace.accent) ? rawSpace.accent : fallbackAccent;
+  const name = typeof rawSpace.name === "string" && rawSpace.name.trim() ? rawSpace.name.trim().slice(0, 30) : deriveSpaceName(normalizedJiraUrl);
+  const accent = typeof rawSpace.accent === "string" && /^#[0-9a-f]{6}$/i.test(rawSpace.accent) ? rawSpace.accent : fallbackAccent;
   const icon = typeof rawSpace.icon === "string" ? rawSpace.icon.slice(0, 4) : "";
   const partition =
-    rawSpace.partition === null
-      ? null
-      : typeof rawSpace.partition === "string" && rawSpace.partition.startsWith("persist:")
-      ? rawSpace.partition
-      : null;
+    rawSpace.partition === null ? null : typeof rawSpace.partition === "string" && rawSpace.partition.startsWith("persist:") ? rawSpace.partition : null;
   const session = normalizeSession(rawSpace.session);
 
   return {
@@ -192,16 +173,10 @@ function normalizeV2(raw) {
   }
 
   const spaces = Array.isArray(raw.spaces)
-    ? raw.spaces
-        .map((space, index) => normalizeSpace(space, ACCENT_PALETTE[index % ACCENT_PALETTE.length]))
-        .filter(Boolean)
+    ? raw.spaces.map((space, index) => normalizeSpace(space, ACCENT_PALETTE[index % ACCENT_PALETTE.length])).filter(Boolean)
     : [];
   const activeSpaceId =
-    typeof raw.activeSpaceId === "string" && spaces.some((space) => space.id === raw.activeSpaceId)
-      ? raw.activeSpaceId
-      : spaces[0]
-      ? spaces[0].id
-      : "";
+    typeof raw.activeSpaceId === "string" && spaces.some((space) => space.id === raw.activeSpaceId) ? raw.activeSpaceId : spaces[0] ? spaces[0].id : "";
 
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -321,21 +296,48 @@ function createWorkspaceConfigStore({ app, fs, path, argv = process.argv, env = 
     const configPath = getWorkspaceConfigPath();
 
     try {
-      return JSON.parse(fs.readFileSync(configPath, "utf8"));
+      return {
+        data: JSON.parse(fs.readFileSync(configPath, "utf8")),
+        shouldReset: false
+      };
     } catch (error) {
+      if (error.code === "ENOENT") {
+        return { data: null, shouldReset: false };
+      }
+
+      if (error instanceof SyntaxError) {
+        console.warn(`Unable to parse ${configPath}; resetting workspace config.`, error.message);
+        return { data: null, shouldReset: true };
+      }
+
       if (error.code !== "ENOENT") {
         console.warn(`Unable to read ${configPath}:`, error);
       }
 
-      return null;
+      return { data: null, shouldReset: false };
     }
   }
 
   function writeRaw(nextData) {
     const configPath = getWorkspaceConfigPath();
+    const nextPayload = JSON.stringify(nextData, null, 2);
+    const tempPath = `${configPath}.${process.pid}.tmp`;
+    let renamed = false;
 
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
-    fs.writeFileSync(configPath, JSON.stringify(nextData, null, 2));
+    try {
+      fs.writeFileSync(tempPath, nextPayload);
+      fs.renameSync(tempPath, configPath);
+      renamed = true;
+    } finally {
+      if (!renamed) {
+        try {
+          fs.rmSync(tempPath, { force: true });
+        } catch {
+          // Ignore cleanup failures for the temporary workspace config file.
+        }
+      }
+    }
   }
 
   function persist() {
@@ -343,10 +345,15 @@ function createWorkspaceConfigStore({ app, fs, path, argv = process.argv, env = 
   }
 
   function hydrate() {
-    const raw = readRaw();
+    const { data: raw, shouldReset } = readRaw();
 
     if (!raw) {
       state = createEmptyV2();
+
+      if (shouldReset) {
+        persist();
+      }
+
       return;
     }
 
@@ -382,13 +389,9 @@ function createWorkspaceConfigStore({ app, fs, path, argv = process.argv, env = 
 
   function addSpace({ name, jiraUrl, accent, icon } = {}) {
     const normalizedJiraUrl = normalizeUrl(jiraUrl).toString();
-    const safeName =
-      typeof name === "string" && name.trim() ? name.trim().slice(0, 30) : deriveSpaceName(normalizedJiraUrl);
+    const safeName = typeof name === "string" && name.trim() ? name.trim().slice(0, 30) : deriveSpaceName(normalizedJiraUrl);
     const id = generateSpaceId(safeName);
-    const safeAccent =
-      typeof accent === "string" && /^#[0-9a-f]{6}$/i.test(accent)
-        ? accent
-        : ACCENT_PALETTE[state.spaces.length % ACCENT_PALETTE.length];
+    const safeAccent = typeof accent === "string" && /^#[0-9a-f]{6}$/i.test(accent) ? accent : ACCENT_PALETTE[state.spaces.length % ACCENT_PALETTE.length];
     const safeIcon = typeof icon === "string" ? icon.slice(0, 4) : "";
 
     const newSpace = {

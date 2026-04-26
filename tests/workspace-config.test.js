@@ -3,13 +3,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const {
-  DEFAULT_SPACE_ID,
-  SCHEMA_VERSION,
-  createWorkspaceConfigStore,
-  migrateLegacy,
-  normalizeUrl
-} = require("../main/workspace-config");
+const { DEFAULT_SPACE_ID, SCHEMA_VERSION, createWorkspaceConfigStore, migrateLegacy, normalizeUrl } = require("../main/workspace-config");
 
 function withTempDir(run) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "jira-desktop-workspace-config-"));
@@ -141,6 +135,32 @@ function runWorkspaceConfigTests() {
 
     assert.strictEqual(config.jiraUrl, "");
     assert.strictEqual(config.workspaceSource, "none");
+  });
+
+  // Malformed JSON falls back to empty state and heals the persisted file.
+  withTempDir((configDirectory) => {
+    fs.writeFileSync(path.join(configDirectory, "workspace.json"), '{"schemaVersion":2,"spaces":[');
+
+    const warnings = [];
+    const originalWarn = console.warn;
+    console.warn = (...args) => warnings.push(args.join(" "));
+
+    try {
+      const store = createStore(configDirectory);
+      const config = store.loadConfig();
+
+      assert.strictEqual(config.jiraUrl, "");
+      assert.strictEqual(config.workspaceSource, "none");
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    const persisted = readFile(configDirectory);
+    assert.strictEqual(persisted.schemaVersion, SCHEMA_VERSION);
+    assert.strictEqual(persisted.activeSpaceId, "");
+    assert.deepStrictEqual(persisted.spaces, []);
+    assert.strictEqual(persisted.openLinksInApp, false);
+    assert.ok(warnings.some((message) => message.includes("resetting workspace config")));
   });
 
   // Adding spaces.
