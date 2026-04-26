@@ -113,11 +113,16 @@ function showSidebar() {
   window.jiraDesktop.setSidebarVisible(true);
 }
 
+function isSpacePanelOpen() {
+  return (spaceModal && !spaceModal.hidden) || (spaceDeleteModal && !spaceDeleteModal.hidden);
+}
+
 function hideSidebar() {
   clearTimeout(hideTimeout);
-  if (sidebarLocked || updateBannerVisible) return;
+  if (sidebarLocked || updateBannerVisible || isSpacePanelOpen()) return;
   hideTimeout = setTimeout(() => {
     if (document.body.dataset.view === "loading" || document.body.dataset.view === "error" || document.body.dataset.view === "setup") return;
+    if (isSpacePanelOpen()) return;
     sidebarVisible = false;
     sidebar.classList.remove("is-visible");
     window.jiraDesktop.setSidebarVisible(false);
@@ -742,17 +747,18 @@ function openSpaceModal({ mode, space }) {
   }
 
   spaceModal.hidden = false;
+  showSidebar();
   setTimeout(() => spaceModalName.focus(), 0);
 }
 
 function closeSpaceModal() {
   spaceModal.hidden = true;
+  if (!sidebar.matches(":hover") && !spaceRail.matches(":hover")) {
+    hideSidebar();
+  }
 }
 
 spaceModalCancel.addEventListener("click", closeSpaceModal);
-spaceModal.addEventListener("click", (event) => {
-  if (event.target === spaceModal) closeSpaceModal();
-});
 
 spaceModalForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -808,17 +814,18 @@ function openDeleteModal(space) {
   deleteTargetSpace = space;
   spaceDeleteText.textContent = `This will sign you out of "${space.name}" and permanently delete its tabs and cookies on this device.`;
   spaceDeleteModal.hidden = false;
+  showSidebar();
 }
 
 function closeDeleteModal() {
   spaceDeleteModal.hidden = true;
   deleteTargetSpace = null;
+  if (!sidebar.matches(":hover") && !spaceRail.matches(":hover")) {
+    hideSidebar();
+  }
 }
 
 spaceDeleteCancel.addEventListener("click", closeDeleteModal);
-spaceDeleteModal.addEventListener("click", (event) => {
-  if (event.target === spaceDeleteModal) closeDeleteModal();
-});
 
 spaceDeleteConfirm.addEventListener("click", async () => {
   if (!deleteTargetSpace) return;
