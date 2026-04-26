@@ -123,44 +123,51 @@
       </section>
     </main>
     <div class="space-menu" id="space-menu" hidden role="menu"></div>
-    <div class="modal-overlay" id="space-modal" hidden>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="space-modal-title">
-        <h2 id="space-modal-title" class="modal-title">Add workspace</h2>
-        <form id="space-modal-form">
-          <div class="modal-field">
-            <label class="modal-label" for="space-modal-name">Name</label>
-            <input class="modal-input" id="space-modal-name" type="text" maxlength="30" required />
+    <aside class="space-panel" id="space-modal" hidden role="dialog" aria-modal="true" aria-labelledby="space-modal-title">
+      <form id="space-modal-form" class="space-panel-form">
+        <div class="space-panel-illustration" id="space-modal-illustration" aria-hidden="true">
+          <span class="space-panel-illustration-bubble">+</span>
+        </div>
+        <h2 id="space-modal-title" class="space-panel-title">Create a workspace</h2>
+        <p class="space-panel-subtitle" id="space-modal-subtitle">Separate your tabs by Jira account, project, or context.</p>
+        <div class="space-panel-fields">
+          <div class="space-panel-field">
+            <label class="space-panel-label" for="space-modal-name">Name</label>
+            <input class="space-panel-input" id="space-modal-name" type="text" maxlength="30" placeholder="Workspace name" required />
           </div>
-          <div class="modal-field" data-url-field>
-            <label class="modal-label" for="space-modal-url">Jira URL</label>
-            <input class="modal-input" id="space-modal-url" type="url" inputmode="url" placeholder="https://your-domain.atlassian.net" required spellcheck="false" />
+          <div class="space-panel-field" data-url-field>
+            <label class="space-panel-label" for="space-modal-url">Jira URL</label>
+            <input class="space-panel-input" id="space-modal-url" type="url" inputmode="url" placeholder="https://your-domain.atlassian.net" required spellcheck="false" />
           </div>
-          <div class="modal-field">
-            <label class="modal-label">Accent</label>
-            <div class="modal-palette" id="space-modal-palette"></div>
+          <div class="space-panel-field">
+            <label class="space-panel-label">Accent</label>
+            <div class="space-panel-palette" id="space-modal-palette"></div>
           </div>
-          <div class="modal-field">
-            <label class="modal-label" for="space-modal-icon">Icon (optional)</label>
-            <input class="modal-input" id="space-modal-icon" type="text" maxlength="4" placeholder="🚀" />
+          <div class="space-panel-field">
+            <label class="space-panel-label" for="space-modal-icon">Icon</label>
+            <input class="space-panel-input" id="space-modal-icon" type="text" maxlength="4" placeholder="🚀 (optional)" />
           </div>
-          <p class="modal-error" id="space-modal-error" hidden></p>
-          <div class="modal-actions">
-            <button class="modal-button modal-button-secondary" type="button" id="space-modal-cancel">Cancel</button>
-            <button class="modal-button modal-button-primary" type="submit" id="space-modal-submit">Save</button>
-          </div>
-        </form>
-      </div>
-    </div>
-    <div class="modal-overlay" id="space-delete-modal" hidden>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="space-delete-title">
-        <h2 id="space-delete-title" class="modal-title">Delete workspace</h2>
-        <p class="modal-text" id="space-delete-text"></p>
-        <div class="modal-actions">
-          <button class="modal-button modal-button-secondary" type="button" id="space-delete-cancel">Cancel</button>
-          <button class="modal-button modal-button-danger" type="button" id="space-delete-confirm">Delete</button>
+        </div>
+        <p class="space-panel-error" id="space-modal-error" hidden></p>
+        <div class="space-panel-actions">
+          <button class="space-panel-primary" type="submit" id="space-modal-submit">Create workspace</button>
+          <button class="space-panel-link" type="button" id="space-modal-cancel">Cancel</button>
+        </div>
+      </form>
+    </aside>
+    <aside class="space-panel" id="space-delete-modal" hidden role="dialog" aria-modal="true" aria-labelledby="space-delete-title">
+      <div class="space-panel-form">
+        <div class="space-panel-illustration space-panel-illustration--danger" aria-hidden="true">
+          <span class="space-panel-illustration-bubble">!</span>
+        </div>
+        <h2 id="space-delete-title" class="space-panel-title">Delete workspace</h2>
+        <p class="space-panel-subtitle" id="space-delete-text"></p>
+        <div class="space-panel-actions">
+          <button class="space-panel-primary space-panel-primary--danger" type="button" id="space-delete-confirm">Delete workspace</button>
+          <button class="space-panel-link" type="button" id="space-delete-cancel">Cancel</button>
         </div>
       </div>
-    </div>
+    </aside>
     <script src="./renderer.js"></script>
   </body>
 </html>

@@ -30,6 +30,8 @@ const spaceModalError = document.getElementById("space-modal-error");
 const spaceModalCancel = document.getElementById("space-modal-cancel");
 const spaceModalSubmit = document.getElementById("space-modal-submit");
 const spaceModalUrlField = spaceModal.querySelector("[data-url-field]");
+const spaceModalSubtitle = spaceModal.querySelector(".space-panel-subtitle");
+const spaceModalIllustration = document.getElementById("space-modal-illustration");
 const spaceDeleteModal = document.getElementById("space-delete-modal");
 const spaceDeleteText = document.getElementById("space-delete-text");
 const spaceDeleteCancel = document.getElementById("space-delete-cancel");
@@ -697,13 +699,13 @@ function renderPalette(selected) {
   for (const color of spacesState.palette || []) {
     const swatch = document.createElement("button");
     swatch.type = "button";
-    swatch.className = `modal-palette-swatch ${color === selected ? "is-selected" : ""}`;
+    swatch.className = `space-panel-palette-swatch ${color === selected ? "is-selected" : ""}`;
     swatch.style.background = color;
     swatch.setAttribute("aria-label", color);
     swatch.dataset.accent = color;
     swatch.addEventListener("click", () => {
       spaceModalAccent = color;
-      for (const el of spaceModalPalette.querySelectorAll(".modal-palette-swatch")) {
+      for (const el of spaceModalPalette.querySelectorAll(".space-panel-palette-swatch")) {
         el.classList.toggle("is-selected", el.dataset.accent === color);
       }
     });
@@ -717,8 +719,12 @@ function openSpaceModal({ mode, space }) {
   spaceModalError.hidden = true;
   spaceModalError.textContent = "";
 
+  const subtitleEl = document.getElementById("space-modal-subtitle");
+
   if (mode === "add") {
-    spaceModalTitle.textContent = "Add workspace";
+    spaceModalTitle.textContent = "Create a workspace";
+    if (subtitleEl) subtitleEl.textContent = "Separate your tabs by Jira account, project, or context.";
+    spaceModalSubmit.textContent = "Create workspace";
     spaceModalName.value = "";
     spaceModalUrl.value = "";
     spaceModalIcon.value = "";
@@ -726,6 +732,8 @@ function openSpaceModal({ mode, space }) {
     renderPalette(spacesState.palette ? spacesState.palette[spacesState.spaces.length % spacesState.palette.length] : "#2684ff");
   } else {
     spaceModalTitle.textContent = "Edit workspace";
+    if (subtitleEl) subtitleEl.textContent = `Update “${space.name || "workspace"}”.`;
+    spaceModalSubmit.textContent = "Save changes";
     spaceModalName.value = space.name || "";
     spaceModalUrl.value = space.jiraUrl || "";
     spaceModalIcon.value = space.icon || "";
