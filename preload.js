@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("jiraDesktop", {
   switchTab: (tabId) => ipcRenderer.send("shell:switch-tab", tabId),
   closeTab: (tabId) => ipcRenderer.send("shell:close-tab", tabId),
   togglePinTab: (tabId) => ipcRenderer.send("shell:toggle-pin-tab", tabId),
+  resetPinnedTab: (tabId) => ipcRenderer.send("shell:reset-pinned-tab", tabId),
   retryActiveTab: () => ipcRenderer.send("shell:retry-active-tab"),
   setSidebarVisible: (visible) => ipcRenderer.send("shell:sidebar-visible", !!visible),
   setTheme: (theme) => ipcRenderer.send("shell:set-theme", theme),

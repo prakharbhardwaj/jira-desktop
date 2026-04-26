@@ -1,16 +1,6 @@
 const fs = require("fs");
 const https = require("https");
-const {
-  app,
-  BrowserWindow,
-  Menu,
-  WebContentsView,
-  clipboard,
-  ipcMain,
-  nativeTheme,
-  session,
-  shell
-} = require("electron");
+const { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain, nativeTheme, session, shell } = require("electron");
 const path = require("path");
 const { pathToFileURL } = require("url");
 const { getDevUserDataPath } = require("./main/dev-user-data");
@@ -24,11 +14,7 @@ if (!app.isPackaged) {
   app.setPath("userData", devUserDataPath);
 }
 
-const {
-  SUPPORTED_PROTOCOL: DEEP_LINK_PROTOCOL,
-  createDeepLinkRouter,
-  findDeepLinkInArgv
-} = require("./main/deep-link");
+const { SUPPORTED_PROTOCOL: DEEP_LINK_PROTOCOL, createDeepLinkRouter, findDeepLinkInArgv } = require("./main/deep-link");
 const { createNavigationPolicy } = require("./main/navigation-policy");
 const { registerShortcutHandler } = require("./main/keyboard-shortcuts");
 const { createTabManager } = require("./main/tab-manager");
@@ -92,7 +78,7 @@ function switchSpaceByOffset(offset) {
   if (spaces.length < 2) return;
 
   const currentIndex = spaces.findIndex((space) => space.id === (config ? config.spaceId : null));
-  const nextIndex = (((currentIndex < 0 ? 0 : currentIndex) + offset) % spaces.length + spaces.length) % spaces.length;
+  const nextIndex = ((((currentIndex < 0 ? 0 : currentIndex) + offset) % spaces.length) + spaces.length) % spaces.length;
 
   switchSpaceById(spaces[nextIndex].id);
 }
@@ -476,6 +462,10 @@ ipcMain.on("shell:close-tab", (_event, tabId) => {
 
 ipcMain.on("shell:toggle-pin-tab", (_event, tabId) => {
   tabManager.togglePinTab(tabId);
+});
+
+ipcMain.on("shell:reset-pinned-tab", (_event, tabId) => {
+  tabManager.resetPinnedTab(tabId);
 });
 
 ipcMain.on("shell:retry-active-tab", () => {

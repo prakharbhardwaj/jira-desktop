@@ -45,6 +45,10 @@ function shouldSpawnOnNavigation(tab, targetUrl) {
   return pinnedOrigin !== targetOrigin;
 }
 
+function isPinnedTabDirty(tab) {
+  return !!(tab.pinned && tab.pinnedUrl && tab.url && tab.url !== tab.pinnedUrl);
+}
+
 function createTabManager({
   createView,
   configureSession,
@@ -113,7 +117,8 @@ function createTabManager({
           errorMessage: tab.errorMessage,
           isActive: tab.id === activeTabId,
           isClosable: activeTabs.length > 1 && !tab.pinned,
-          isPinned: tab.pinned
+          isPinned: tab.pinned,
+          isPinnedDirty: isPinnedTabDirty(tab)
         }))
     };
   }
@@ -281,9 +286,7 @@ function createTabManager({
     }
 
     const partition = options.partition || null;
-    const viewWebPreferences = partition
-      ? { ...BASE_WEB_PREFERENCES, partition }
-      : { ...BASE_WEB_PREFERENCES };
+    const viewWebPreferences = partition ? { ...BASE_WEB_PREFERENCES, partition } : { ...BASE_WEB_PREFERENCES };
     const view = createView({ webPreferences: viewWebPreferences });
 
     configureSession(view.webContents.session);
@@ -400,6 +403,16 @@ function createTabManager({
     loadTab(activeTab, activeTab.url || homeUrl);
   }
 
+  function resetPinnedTab(tabId) {
+    const tab = getTab(tabId);
+
+    if (!tab || !tab.pinned || !tab.pinnedUrl) {
+      return;
+    }
+
+    loadTab(tab, tab.pinnedUrl);
+  }
+
   function restorePersistedState(spaceId, sessionState, options = {}) {
     if (!spaceId) return false;
     if (!sessionState || !Array.isArray(sessionState.tabs) || sessionState.tabs.length === 0) {
@@ -407,9 +420,7 @@ function createTabManager({
     }
 
     const activeTabIndex =
-      Number.isInteger(sessionState.activeTabIndex) &&
-      sessionState.activeTabIndex >= 0 &&
-      sessionState.activeTabIndex < sessionState.tabs.length
+      Number.isInteger(sessionState.activeTabIndex) && sessionState.activeTabIndex >= 0 && sessionState.activeTabIndex < sessionState.tabs.length
         ? sessionState.activeTabIndex
         : 0;
 
@@ -419,7 +430,7 @@ function createTabManager({
       }
 
       createTab(tab.url, {
-        activate: index === activeTabIndex && (options.activate !== false),
+        activate: index === activeTabIndex && options.activate !== false,
         partition: options.partition,
         pinned: !!tab.pinned,
         spaceId,
@@ -481,6 +492,7 @@ function createTabManager({
     hasTabs: hasAnyTabs,
     hasTabsForSpace,
     reloadActiveTab,
+    resetPinnedTab,
     restorePersistedState,
     serializePersistedState,
     serializeState,

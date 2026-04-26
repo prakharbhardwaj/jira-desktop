@@ -178,7 +178,7 @@ function renderTabs(state) {
     }
 
     const tabShell = document.createElement("div");
-    tabShell.className = `tab ${tab.isActive ? "is-active" : ""} ${tab.isPinned ? "is-pinned" : ""}`;
+    tabShell.className = `tab ${tab.isActive ? "is-active" : ""} ${tab.isPinned ? "is-pinned" : ""} ${tab.isPinnedDirty ? "is-pinned-dirty" : ""}`;
 
     const tabButton = document.createElement("div");
     tabButton.className = "tab-button";
@@ -195,6 +195,14 @@ function renderTabs(state) {
     pinBtn.title = tab.isPinned ? "Unpin" : "Pin";
     pinBtn.innerHTML = tab.isPinned ? PIN_ICON_FILLED : PIN_ICON_OUTLINE;
     tabButton.appendChild(pinBtn);
+
+    if (tab.isPinnedDirty) {
+      const dirtyMarker = document.createElement("span");
+      dirtyMarker.className = "tab-pinned-dirty-marker";
+      dirtyMarker.setAttribute("aria-hidden", "true");
+      dirtyMarker.textContent = "/";
+      tabButton.appendChild(dirtyMarker);
+    }
 
     const title = document.createElement("span");
     title.className = "tab-title";
@@ -217,6 +225,18 @@ function renderTabs(state) {
       closeButton.innerHTML =
         '<svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 1l8 8M9 1l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
       tabButton.appendChild(closeButton);
+    }
+
+    if (tab.isPinnedDirty) {
+      const resetButton = document.createElement("button");
+      resetButton.className = "tab-reset";
+      resetButton.type = "button";
+      resetButton.dataset.resetPinnedTabId = tab.id;
+      resetButton.setAttribute("aria-label", "Reset pinned tab to its saved URL");
+      resetButton.title = "Reset to pinned URL";
+      resetButton.innerHTML =
+        '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+      tabButton.appendChild(resetButton);
     }
 
     tabShell.appendChild(tabButton);
@@ -376,6 +396,14 @@ tabStripElement.addEventListener("click", (event) => {
   if (pinButton) {
     event.stopPropagation();
     window.jiraDesktop.togglePinTab(pinButton.dataset.pinTabId);
+    return;
+  }
+
+  const resetButton = event.target.closest("[data-reset-pinned-tab-id]");
+
+  if (resetButton) {
+    event.stopPropagation();
+    window.jiraDesktop.resetPinnedTab(resetButton.dataset.resetPinnedTabId);
     return;
   }
 

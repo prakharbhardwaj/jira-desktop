@@ -272,6 +272,13 @@ body[data-view="error"] .sidebar {
   text-align: left;
 }
 
+.tab-pinned-dirty-marker {
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+}
+
 .tab-loading {
   width: 6px;
   height: 6px;
@@ -368,6 +375,45 @@ body[data-view="error"] .sidebar {
 }
 
 .tab-pin:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.tab-reset {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.1s,
+    background 0.1s,
+    color 0.1s;
+  -webkit-app-region: no-drag;
+}
+
+.tab:hover .tab-reset,
+.tab.is-active .tab-reset {
+  opacity: 1;
+}
+
+.tab-reset:hover {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent);
+}
+
+[data-theme="light"] .tab-reset:hover {
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.tab-reset:focus-visible {
   opacity: 1;
   outline: 2px solid var(--accent);
   outline-offset: 1px;

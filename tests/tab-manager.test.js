@@ -6,6 +6,7 @@ function createFakeWebContents() {
   const listeners = new Map();
   return {
     _windowOpenHandler: null,
+    loadUrls: [],
     on(event, handler) {
       if (!listeners.has(event)) {
         listeners.set(event, []);
@@ -20,7 +21,8 @@ function createFakeWebContents() {
     setWindowOpenHandler(handler) {
       this._windowOpenHandler = handler;
     },
-    loadURL() {
+    loadURL(targetUrl) {
+      this.loadUrls.push(targetUrl);
       return Promise.resolve();
     },
     close() {},
@@ -84,6 +86,9 @@ function runTabManagerTests() {
     const event = createFakeEvent();
     pinnedTab.view.webContents.emit("will-navigate", event, "https://example.atlassian.net/browse/ABC-1");
     assert.strictEqual(event.defaultPrevented, false);
+
+    pinnedTab.view.webContents.emit("did-navigate", {}, "https://example.atlassian.net/browse/ABC-1");
+    assert.strictEqual(tabManager.serializeState({}).tabs[0].isPinnedDirty, true);
   }
 
   // Cross-origin nav in pinned tab spawns a new tab in the same space.
@@ -136,6 +141,21 @@ function runTabManagerTests() {
     assert.strictEqual(persisted.tabs[0].url, "https://example.atlassian.net/jira/your-work");
   }
 
+  // resetPinnedTab navigates back to the pinned URL.
+  {
+    const { tabManager } = createHarness();
+    const pinnedTab = tabManager.createTab("https://example.atlassian.net/jira/your-work", {
+      pinned: true,
+      spaceId: "s1"
+    });
+
+    pinnedTab.view.webContents.emit("did-navigate", {}, "https://example.atlassian.net/browse/ABC-1");
+    tabManager.resetPinnedTab(pinnedTab.id);
+
+    assert.strictEqual(pinnedTab.view.webContents.loadUrls.at(-1), "https://example.atlassian.net/jira/your-work");
+    assert.strictEqual(tabManager.serializeState({}).tabs[0].isPinnedDirty, false);
+  }
+
   // togglePinTab captures/clears pinnedUrl.
   {
     const { tabManager } = createHarness();
@@ -159,15 +179,15 @@ function runTabManagerTests() {
 
     const alphaState = tabManager.serializeState({});
     assert.strictEqual(alphaState.activeSpaceId, "alpha");
-    assert.deepStrictEqual(
-      alphaState.tabs.map((tab) => tab.id).sort(),
-      [tabA1.id, tabA2.id].sort()
-    );
+    assert.deepStrictEqual(alphaState.tabs.map((tab) => tab.id).sort(), [tabA1.id, tabA2.id].sort());
 
     tabManager.setActiveSpace("beta");
     const betaState = tabManager.serializeState({});
     assert.strictEqual(betaState.activeSpaceId, "beta");
-    assert.deepStrictEqual(betaState.tabs.map((tab) => tab.id), [tabB1.id]);
+    assert.deepStrictEqual(
+      betaState.tabs.map((tab) => tab.id),
+      [tabB1.id]
+    );
   }
 
   // Partition gets forwarded to createView.
