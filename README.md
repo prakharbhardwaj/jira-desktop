@@ -13,10 +13,12 @@ Download the latest packaged builds from [GitHub Releases](https://github.com/pr
 
 ## Features
 
+- Multi-workspace "Spaces" with fully isolated cookies per space
 - Multi-tab Jira browsing inside a single desktop window
 - Pinned tabs and session restore for saved workspaces
 - Keyboard shortcuts for new tab, close tab, and reload actions
 - Theme toggle, lockable sidebar, and an in-app update banner
+- Optional `jira-desktop://` deep-link handler so compatible Jira links from other apps open in Jira Desktop
 - Hardened Electron configuration with `contextIsolation`, `sandbox`, and disabled `nodeIntegration`
 - Navigation restricted to Jira and approved Atlassian-adjacent hosts
 - Setup, loading, and error states for failed network loads
@@ -104,6 +106,28 @@ JIRA_ALLOWED_HOSTS=auth.example.com,id.atlassian.com \
 yarn start
 ```
 
+### Deep linking
+
+Jira Desktop can register itself as the handler for the `jira-desktop://` URL scheme. When enabled, links shaped like `jira-desktop://open?url=<url-encoded-https-url>` open the target URL in the app. Links that resolve to a non-allowed host are ignored.
+
+Plain `https://...` Jira URLs are not registered at the OS level, so this setting does not replace your default browser. Raw Jira URLs still work when they are explicitly passed to Jira Desktop at launch, but links from Slack, email, or the browser need to use the `jira-desktop://` wrapper for Jira Desktop to receive them.
+
+- The setting lives in the sidebar header (the link icon) and only appears in packaged builds, so dev runs do not pollute your OS defaults
+- The toggle is off by default — turn it on when you want links from Slack, email, or browser bookmarklets to open in Jira Desktop
+- When the app is not running, launching it via a `jira-desktop://` URL opens the link after the main window finishes loading
+- The OS-level registration is removed when you turn the toggle off
+
+## Spaces
+
+Jira Desktop supports multiple Jira accounts in one app. Each workspace has its own `WebContentsView` partition, so cookies, storage, and login state are fully isolated.
+
+- The active workspace name is shown at the top of the sidebar, with its accent color as a small dot next to it.
+- At the bottom of the sidebar, a row of colored dots represents every workspace — click a dot to switch. The `+` at the right adds a new workspace (name, Jira URL, accent color, optional emoji).
+- Two-finger horizontal swipe on a trackpad over the tab list also cycles between workspaces (previous / next with wrap).
+- Right-click any dot to edit or delete the workspace. Deleting signs you out of that Jira account on this device and purges its partition data; the last remaining workspace cannot be deleted.
+- v1.x users auto-migrate on first v2 launch: the existing workspace becomes your first entry and keeps its cookies, so you stay logged in through the upgrade.
+- When `JIRA_URL` or `--jira-url` is set, workspaces are disabled for that launch and the runtime URL becomes the single ephemeral workspace — the `+` button is hidden.
+
 ## Keyboard Shortcuts
 
 ```text
@@ -112,6 +136,8 @@ Cmd/Ctrl+W              Close the active unpinned tab
 Cmd/Ctrl+R or F5        Reload the active tab
 Cmd/Ctrl+Shift+R        Force reload the active tab and ignore cache
 Shift+F5                Force reload the active tab and ignore cache
+Cmd/Ctrl+1..9           Switch to space by index
+Cmd/Ctrl+Shift+] / [    Cycle next / previous space (wraps)
 ```
 
 The sidebar also includes a lock toggle and a light/dark theme toggle in the shell header.

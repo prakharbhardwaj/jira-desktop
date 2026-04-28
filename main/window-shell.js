@@ -1,6 +1,6 @@
 const HIDDEN_VIEW_BOUNDS = { x: 0, y: 0, width: 0, height: 0 };
 const SIDEBAR_TRIGGER_WIDTH = 6;
-const SIDEBAR_WIDTH = 220;
+const SIDEBAR_WIDTH = 240;
 
 function shouldShowOverlay(tab) {
   return !tab || tab.status === "error" || (tab.status === "loading" && !tab.hasLoadedOnce);
@@ -116,6 +116,19 @@ function createWindowShell({
     updateActiveTabView();
   }
 
+  function focusMainWindow() {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+
+    mainWindow.show();
+    mainWindow.focus();
+  }
+
   function detachView(view) {
     if (!view || attachedView !== view) {
       return;
@@ -174,6 +187,7 @@ function createWindowShell({
   return {
     createWindow,
     detachView,
+    focusMainWindow,
     getMainWindow,
     refreshShell,
     sendState,

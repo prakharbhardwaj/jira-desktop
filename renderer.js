@@ -13,8 +13,34 @@ const cardIcon = document.getElementById("card-icon");
 const retryButton = document.getElementById("retry-button");
 const sidebar = document.getElementById("sidebar");
 const sidebarTrigger = document.getElementById("sidebar-trigger");
+const workspaceBar = document.getElementById("workspace-bar");
+const workspaceDots = document.getElementById("workspace-dots");
+const workspaceAdd = document.getElementById("workspace-add");
+const workspaceDelete = document.getElementById("workspace-delete");
+const workspaceNameEl = document.getElementById("sidebar-workspace-name");
+const workspaceAccentEl = document.getElementById("sidebar-workspace-accent");
+const tabStripContainer = document.getElementById("tab-strip");
+const spaceMenu = document.getElementById("space-menu");
+const spaceModal = document.getElementById("space-modal");
+const spaceModalForm = document.getElementById("space-modal-form");
+const spaceModalTitle = document.getElementById("space-modal-title");
+const spaceModalName = document.getElementById("space-modal-name");
+const spaceModalUrl = document.getElementById("space-modal-url");
+const spaceModalIcon = document.getElementById("space-modal-icon");
+const spaceModalPalette = document.getElementById("space-modal-palette");
+const spaceModalError = document.getElementById("space-modal-error");
+const spaceModalCancel = document.getElementById("space-modal-cancel");
+const spaceModalSubmit = document.getElementById("space-modal-submit");
+const spaceModalUrlField = spaceModal.querySelector("[data-url-field]");
+const spaceModalSubtitle = spaceModal.querySelector(".space-panel-subtitle");
+const spaceModalIllustration = document.getElementById("space-modal-illustration");
+const spaceDeleteModal = document.getElementById("space-delete-modal");
+const spaceDeleteText = document.getElementById("space-delete-text");
+const spaceDeleteCancel = document.getElementById("space-delete-cancel");
+const spaceDeleteConfirm = document.getElementById("space-delete-confirm");
 const sidebarLockBtn = document.getElementById("sidebar-lock");
 const themeToggleBtn = document.getElementById("theme-toggle");
+const deepLinkToggleBtn = document.getElementById("deep-link-toggle");
 const updateBanner = document.getElementById("update-banner");
 const updateText = document.getElementById("update-text");
 const updateAction = document.getElementById("update-action");
@@ -89,11 +115,16 @@ function showSidebar() {
   window.jiraDesktop.setSidebarVisible(true);
 }
 
+function isSpacePanelOpen() {
+  return (spaceModal && !spaceModal.hidden) || (spaceDeleteModal && !spaceDeleteModal.hidden);
+}
+
 function hideSidebar() {
   clearTimeout(hideTimeout);
-  if (sidebarLocked || updateBannerVisible) return;
+  if (sidebarLocked || updateBannerVisible || isSpacePanelOpen()) return;
   hideTimeout = setTimeout(() => {
     if (document.body.dataset.view === "loading" || document.body.dataset.view === "error" || document.body.dataset.view === "setup") return;
+    if (isSpacePanelOpen()) return;
     sidebarVisible = false;
     sidebar.classList.remove("is-visible");
     window.jiraDesktop.setSidebarVisible(false);
@@ -147,7 +178,7 @@ function renderTabs(state) {
     }
 
     const tabShell = document.createElement("div");
-    tabShell.className = `tab ${tab.isActive ? "is-active" : ""} ${tab.isPinned ? "is-pinned" : ""}`;
+    tabShell.className = `tab ${tab.isActive ? "is-active" : ""} ${tab.isPinned ? "is-pinned" : ""} ${tab.isPinnedDirty ? "is-pinned-dirty" : ""}`;
 
     const tabButton = document.createElement("div");
     tabButton.className = "tab-button";
@@ -164,6 +195,14 @@ function renderTabs(state) {
     pinBtn.title = tab.isPinned ? "Unpin" : "Pin";
     pinBtn.innerHTML = tab.isPinned ? PIN_ICON_FILLED : PIN_ICON_OUTLINE;
     tabButton.appendChild(pinBtn);
+
+    if (tab.isPinnedDirty) {
+      const dirtyMarker = document.createElement("span");
+      dirtyMarker.className = "tab-pinned-dirty-marker";
+      dirtyMarker.setAttribute("aria-hidden", "true");
+      dirtyMarker.textContent = "/";
+      tabButton.appendChild(dirtyMarker);
+    }
 
     const title = document.createElement("span");
     title.className = "tab-title";
@@ -186,6 +225,18 @@ function renderTabs(state) {
       closeButton.innerHTML =
         '<svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 1l8 8M9 1l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
       tabButton.appendChild(closeButton);
+    }
+
+    if (tab.isPinnedDirty) {
+      const resetButton = document.createElement("button");
+      resetButton.className = "tab-reset";
+      resetButton.type = "button";
+      resetButton.dataset.resetPinnedTabId = tab.id;
+      resetButton.setAttribute("aria-label", "Reset pinned tab to its saved URL");
+      resetButton.title = "Reset to pinned URL";
+      resetButton.innerHTML =
+        '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+      tabButton.appendChild(resetButton);
     }
 
     tabShell.appendChild(tabButton);
@@ -289,7 +340,13 @@ function renderOverlay(state) {
 }
 
 function render(state) {
+  const previousSpaceId = currentState && currentState.activeSpaceId;
   currentState = state;
+
+  if (state.activeSpaceId !== spacesState.activeSpaceId || state.activeSpaceId !== previousSpaceId) {
+    void reloadSpaces();
+  }
+
   renderTabs(state);
   renderOverlay(state);
 
@@ -339,6 +396,14 @@ tabStripElement.addEventListener("click", (event) => {
   if (pinButton) {
     event.stopPropagation();
     window.jiraDesktop.togglePinTab(pinButton.dataset.pinTabId);
+    return;
+  }
+
+  const resetButton = event.target.closest("[data-reset-pinned-tab-id]");
+
+  if (resetButton) {
+    event.stopPropagation();
+    window.jiraDesktop.resetPinnedTab(resetButton.dataset.resetPinnedTabId);
     return;
   }
 
@@ -430,3 +495,454 @@ window.jiraDesktop.checkUpdate().then((update) => {
 updateDismiss.addEventListener("click", () => {
   setUpdateBannerVisible(false);
 });
+
+/* ── Deep link setting ────────────────────────────────── */
+
+function applyDeepLinkState({ enabled, supported }) {
+  if (!supported) {
+    deepLinkToggleBtn.hidden = true;
+    return;
+  }
+
+  deepLinkToggleBtn.hidden = false;
+  deepLinkToggleBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
+  deepLinkToggleBtn.title = enabled ? "jira-desktop:// links: on" : "jira-desktop:// links: off";
+}
+
+async function loadDeepLinkState() {
+  try {
+    const state = await window.jiraDesktop.getDeepLinkSetting();
+    applyDeepLinkState(state || { enabled: false, supported: false });
+  } catch {
+    applyDeepLinkState({ enabled: false, supported: false });
+  }
+}
+
+deepLinkToggleBtn.addEventListener("click", async () => {
+  const next = deepLinkToggleBtn.getAttribute("aria-pressed") !== "true";
+  deepLinkToggleBtn.disabled = true;
+
+  try {
+    const state = await window.jiraDesktop.setDeepLinkSetting(next);
+    applyDeepLinkState(state || { enabled: next, supported: true });
+  } finally {
+    deepLinkToggleBtn.disabled = false;
+  }
+});
+
+void loadDeepLinkState();
+
+/* ── Spaces ───────────────────────────────────────────── */
+
+let spacesState = { spaces: [], activeSpaceId: null, palette: [], runtimeOverride: false };
+const SPACE_SWIPE_THRESHOLD = 120;
+const SPACE_SWIPE_RESET_MS = 140;
+let spaceSwipeDeltaX = 0;
+let spaceSwipeDirection = 0;
+let spaceSwipeConsumed = false;
+let spaceSwipeResetHandle = null;
+
+function resetSpaceSwipeGesture() {
+  spaceSwipeDeltaX = 0;
+  spaceSwipeDirection = 0;
+  spaceSwipeConsumed = false;
+
+  if (spaceSwipeResetHandle) {
+    window.clearTimeout(spaceSwipeResetHandle);
+    spaceSwipeResetHandle = null;
+  }
+}
+
+function scheduleSpaceSwipeReset() {
+  if (spaceSwipeResetHandle) {
+    window.clearTimeout(spaceSwipeResetHandle);
+  }
+
+  spaceSwipeResetHandle = window.setTimeout(() => {
+    spaceSwipeResetHandle = null;
+    spaceSwipeDeltaX = 0;
+    spaceSwipeDirection = 0;
+    spaceSwipeConsumed = false;
+  }, SPACE_SWIPE_RESET_MS);
+}
+
+function activeSpace() {
+  return spacesState.spaces.find((entry) => entry.id === spacesState.activeSpaceId) || null;
+}
+
+function renderSpaces() {
+  workspaceDots.innerHTML = "";
+  const active = activeSpace();
+  const canDeleteActiveSpace = !spacesState.runtimeOverride && spacesState.spaces.length > 1 && !!active;
+
+  if (spacesState.runtimeOverride) {
+    workspaceAdd.hidden = true;
+  } else {
+    workspaceAdd.hidden = false;
+  }
+
+  workspaceDelete.hidden = !canDeleteActiveSpace;
+  workspaceDelete.disabled = !canDeleteActiveSpace;
+  workspaceDelete.title = canDeleteActiveSpace
+    ? `Delete ${active.name}`
+    : spacesState.runtimeOverride
+      ? "Cannot delete workspaces while a runtime override is active"
+      : "Cannot delete the last remaining workspace";
+
+  document.body.dataset.singleSpace = spacesState.spaces.length <= 1 ? "true" : "false";
+
+  for (const space of spacesState.spaces) {
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = `workspace-dot ${space.id === spacesState.activeSpaceId ? "is-active" : ""}`;
+    dot.dataset.spaceId = space.id;
+    dot.style.setProperty("--dot-color", space.accent || "#2684ff");
+    dot.title = `${space.name}\n${space.jiraUrl}`;
+    dot.setAttribute("role", "tab");
+    dot.setAttribute("aria-label", space.name);
+    dot.setAttribute("aria-selected", space.id === spacesState.activeSpaceId ? "true" : "false");
+
+    workspaceDots.appendChild(dot);
+  }
+
+  if (active) {
+    workspaceNameEl.textContent = active.name;
+    workspaceAccentEl.style.background = active.accent || "#2684ff";
+    workspaceAccentEl.hidden = false;
+  } else if (spacesState.runtimeOverride) {
+    workspaceNameEl.textContent = "Jira Desktop";
+    workspaceAccentEl.hidden = true;
+  } else {
+    workspaceNameEl.textContent = "Jira Desktop";
+    workspaceAccentEl.hidden = true;
+  }
+}
+
+async function reloadSpaces() {
+  try {
+    const result = await window.jiraDesktop.listSpaces();
+    spacesState = result || spacesState;
+    renderSpaces();
+  } catch {
+    /* ignore */
+  }
+}
+
+async function switchToSpace(spaceId) {
+  if (!spaceId || spaceId === spacesState.activeSpaceId) return;
+  const result = await window.jiraDesktop.switchSpace(spaceId);
+
+  if (result && result.ok) {
+    spacesState = { ...spacesState, ...result };
+    renderSpaces();
+  }
+}
+
+workspaceDots.addEventListener("click", (event) => {
+  const dot = event.target.closest("[data-space-id]");
+  if (!dot) return;
+  void switchToSpace(dot.dataset.spaceId);
+});
+
+workspaceDots.addEventListener("contextmenu", (event) => {
+  const dot = event.target.closest("[data-space-id]");
+  if (!dot) return;
+  event.preventDefault();
+  openSpaceMenu(dot.dataset.spaceId, event.clientX, event.clientY);
+});
+
+workspaceAdd.addEventListener("click", () => {
+  openSpaceModal({ mode: "add" });
+});
+
+workspaceDelete.addEventListener("click", () => {
+  const space = activeSpace();
+
+  if (!space || spacesState.runtimeOverride || spacesState.spaces.length <= 1) {
+    return;
+  }
+
+  closeSpaceMenu();
+  openDeleteModal(space);
+});
+
+function switchSpaceByOffset(offset) {
+  if (spacesState.runtimeOverride) return;
+  const count = spacesState.spaces.length;
+  if (count < 2) return;
+
+  const currentIndex = spacesState.spaces.findIndex((entry) => entry.id === spacesState.activeSpaceId);
+  const nextIndex = ((((currentIndex < 0 ? 0 : currentIndex) + offset) % count) + count) % count;
+  void switchToSpace(spacesState.spaces[nextIndex].id);
+}
+
+// Arc-style two-finger horizontal swipe on the tab list switches workspace.
+tabStripContainer.addEventListener(
+  "wheel",
+  (event) => {
+    const { deltaX, deltaY } = event;
+    const horizontalDistance = Math.abs(deltaX);
+    const verticalDistance = Math.abs(deltaY);
+
+    if (horizontalDistance < 6) return;
+    if (horizontalDistance <= verticalDistance * 1.35) return;
+
+    event.preventDefault();
+    scheduleSpaceSwipeReset();
+
+    if (spaceSwipeConsumed) {
+      return;
+    }
+
+    const direction = Math.sign(deltaX);
+    if (spaceSwipeDirection && direction !== spaceSwipeDirection) {
+      spaceSwipeDeltaX = 0;
+    }
+
+    spaceSwipeDirection = direction;
+    spaceSwipeDeltaX += deltaX;
+    if (Math.abs(spaceSwipeDeltaX) < SPACE_SWIPE_THRESHOLD) return;
+
+    spaceSwipeConsumed = true;
+    spaceSwipeDeltaX = 0;
+    spaceSwipeDirection = 0;
+    switchSpaceByOffset(direction > 0 ? 1 : -1);
+  },
+  { passive: false }
+);
+
+/* ── Space context menu ───────────────────────────────── */
+
+let activeMenuSpaceId = null;
+
+function closeSpaceMenu() {
+  spaceMenu.hidden = true;
+  spaceMenu.innerHTML = "";
+  activeMenuSpaceId = null;
+}
+
+function openSpaceMenu(spaceId, x, y) {
+  if (spacesState.runtimeOverride) return;
+
+  const space = spacesState.spaces.find((entry) => entry.id === spaceId);
+  if (!space) return;
+
+  activeMenuSpaceId = spaceId;
+  spaceMenu.innerHTML = "";
+
+  const editButton = document.createElement("button");
+  editButton.type = "button";
+  editButton.className = "space-menu-item";
+  editButton.textContent = "Edit…";
+  editButton.addEventListener("click", () => {
+    closeSpaceMenu();
+    openSpaceModal({ mode: "edit", space });
+  });
+  spaceMenu.appendChild(editButton);
+
+  const separator = document.createElement("div");
+  separator.className = "space-menu-separator";
+  spaceMenu.appendChild(separator);
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "space-menu-item is-danger";
+  deleteButton.textContent = "Delete…";
+  if (spacesState.spaces.length <= 1) {
+    deleteButton.disabled = true;
+    deleteButton.title = "Cannot delete the last remaining workspace";
+  }
+  deleteButton.addEventListener("click", () => {
+    closeSpaceMenu();
+    openDeleteModal(space);
+  });
+  spaceMenu.appendChild(deleteButton);
+
+  spaceMenu.style.left = `${x}px`;
+  spaceMenu.style.top = `${y}px`;
+  spaceMenu.hidden = false;
+
+  const rect = spaceMenu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    spaceMenu.style.left = `${window.innerWidth - rect.width - 4}px`;
+  }
+  if (rect.bottom > window.innerHeight) {
+    spaceMenu.style.top = `${window.innerHeight - rect.height - 4}px`;
+  }
+}
+
+document.addEventListener("click", (event) => {
+  if (!activeMenuSpaceId) return;
+  if (spaceMenu.contains(event.target)) return;
+  closeSpaceMenu();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeSpaceMenu();
+    closeSpaceModal();
+    closeDeleteModal();
+  }
+});
+
+/* ── Space modal (add / edit) ─────────────────────────── */
+
+let spaceModalMode = "add";
+let spaceModalSpaceId = null;
+let spaceModalAccent = "";
+
+function renderPalette(selected) {
+  spaceModalPalette.innerHTML = "";
+  spaceModalAccent = selected;
+
+  for (const color of spacesState.palette || []) {
+    const swatch = document.createElement("button");
+    swatch.type = "button";
+    swatch.className = `space-panel-palette-swatch ${color === selected ? "is-selected" : ""}`;
+    swatch.style.background = color;
+    swatch.setAttribute("aria-label", color);
+    swatch.dataset.accent = color;
+    swatch.addEventListener("click", () => {
+      spaceModalAccent = color;
+      for (const el of spaceModalPalette.querySelectorAll(".space-panel-palette-swatch")) {
+        el.classList.toggle("is-selected", el.dataset.accent === color);
+      }
+    });
+    spaceModalPalette.appendChild(swatch);
+  }
+}
+
+function openSpaceModal({ mode, space }) {
+  spaceModalMode = mode;
+  spaceModalSpaceId = space ? space.id : null;
+  spaceModalError.hidden = true;
+  spaceModalError.textContent = "";
+
+  const subtitleEl = document.getElementById("space-modal-subtitle");
+
+  if (mode === "add") {
+    spaceModalTitle.textContent = "Create a workspace";
+    if (subtitleEl) subtitleEl.textContent = "Separate your tabs by Jira account, project, or context.";
+    spaceModalSubmit.textContent = "Create workspace";
+    spaceModalName.value = "";
+    spaceModalUrl.value = "";
+    spaceModalIcon.value = "";
+    spaceModalUrlField.hidden = false;
+    renderPalette(spacesState.palette ? spacesState.palette[spacesState.spaces.length % spacesState.palette.length] : "#2684ff");
+  } else {
+    spaceModalTitle.textContent = "Edit workspace";
+    if (subtitleEl) subtitleEl.textContent = `Update “${space.name || "workspace"}”.`;
+    spaceModalSubmit.textContent = "Save changes";
+    spaceModalName.value = space.name || "";
+    spaceModalUrl.value = space.jiraUrl || "";
+    spaceModalIcon.value = space.icon || "";
+    spaceModalUrlField.hidden = false;
+    renderPalette(space.accent || "#2684ff");
+  }
+
+  spaceModal.hidden = false;
+  showSidebar();
+  setTimeout(() => spaceModalName.focus(), 0);
+}
+
+function closeSpaceModal() {
+  spaceModal.hidden = true;
+  if (!sidebar.matches(":hover") && !workspaceBar.matches(":hover")) {
+    hideSidebar();
+  }
+}
+
+spaceModalCancel.addEventListener("click", closeSpaceModal);
+
+spaceModalForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const name = spaceModalName.value.trim();
+  const jiraUrl = spaceModalUrl.value.trim();
+  const icon = spaceModalIcon.value.trim();
+  const accent = spaceModalAccent;
+
+  if (!name || !jiraUrl) return;
+
+  spaceModalSubmit.disabled = true;
+
+  try {
+    let result;
+    if (spaceModalMode === "add") {
+      result = await window.jiraDesktop.addSpace({ name, jiraUrl, accent, icon });
+    } else {
+      result = await window.jiraDesktop.updateSpace({
+        id: spaceModalSpaceId,
+        changes: { name, jiraUrl, accent, icon }
+      });
+    }
+
+    if (!result || !result.ok) {
+      spaceModalError.hidden = false;
+      spaceModalError.textContent = (result && result.error) || "Unable to save workspace.";
+      return;
+    }
+
+    spacesState = { ...spacesState, ...result };
+    renderSpaces();
+
+    if (spaceModalMode === "add" && result.space) {
+      const switchResult = await window.jiraDesktop.switchSpace(result.space.id);
+      if (switchResult && switchResult.ok) {
+        spacesState = { ...spacesState, ...switchResult };
+        renderSpaces();
+      }
+    }
+
+    closeSpaceModal();
+  } finally {
+    spaceModalSubmit.disabled = false;
+  }
+});
+
+/* ── Delete confirmation modal ────────────────────────── */
+
+let deleteTargetSpace = null;
+
+function openDeleteModal(space) {
+  deleteTargetSpace = space;
+  spaceDeleteText.textContent = `This will sign you out of "${space.name}" and permanently delete its tabs and cookies on this device.`;
+  spaceDeleteModal.hidden = false;
+  showSidebar();
+}
+
+function closeDeleteModal() {
+  spaceDeleteModal.hidden = true;
+  deleteTargetSpace = null;
+  if (!sidebar.matches(":hover") && !workspaceBar.matches(":hover")) {
+    hideSidebar();
+  }
+}
+
+spaceDeleteCancel.addEventListener("click", closeDeleteModal);
+
+spaceDeleteConfirm.addEventListener("click", async () => {
+  if (!deleteTargetSpace) return;
+  spaceDeleteConfirm.disabled = true;
+
+  try {
+    const result = await window.jiraDesktop.deleteSpace(deleteTargetSpace.id);
+
+    if (result && result.ok) {
+      spacesState = { ...spacesState, ...result };
+      renderSpaces();
+    }
+
+    closeDeleteModal();
+  } finally {
+    spaceDeleteConfirm.disabled = false;
+  }
+});
+
+window.jiraDesktop.onSpacesChanged((payload) => {
+  if (!payload) return;
+  spacesState = { ...spacesState, ...payload };
+  renderSpaces();
+});
+
+void reloadSpaces();

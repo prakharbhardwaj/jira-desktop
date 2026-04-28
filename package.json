@@ -1,7 +1,7 @@
 {
   "name": "jira-desktop",
   "productName": "Jira Desktop",
-  "version": "1.3.1",
+  "version": "2.0.0",
   "description": "A dedicated Jira desktop workspace with fewer browser tabs and safer isolation than a normal browser workflow.",
   "main": "main.js",
   "private": true,
@@ -9,6 +9,8 @@
     "start": "electron .",
     "test:unit": "node tests/unit.js",
     "test:smoke": "node tests/smoke.js",
+    "test:smoke-partition": "node tests/smoke-partition.js",
+    "test:smoke-spaces": "node tests/smoke-spaces.js",
     "package:dir": "electron-builder --dir",
     "dist": "electron-builder",
     "release-win": "electron-builder --config.asar=true --config.compression=maximum --win --publish never",
@@ -44,6 +46,14 @@
   "build": {
     "asar": true,
     "compression": "maximum",
+    "protocols": [
+      {
+        "name": "Jira Desktop Link",
+        "schemes": [
+          "jira-desktop"
+        ]
+      }
+    ],
     "directories": {
       "output": "dist"
     },

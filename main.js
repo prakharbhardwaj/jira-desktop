@@ -1,6 +1,6 @@
 const fs = require("fs");
 const https = require("https");
-const { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain, nativeTheme, shell } = require("electron");
+const { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain, nativeTheme, session, shell } = require("electron");
 const path = require("path");
 const { pathToFileURL } = require("url");
 const { getDevUserDataPath } = require("./main/dev-user-data");
@@ -14,6 +14,7 @@ if (!app.isPackaged) {
   app.setPath("userData", devUserDataPath);
 }
 
+const { SUPPORTED_PROTOCOL: DEEP_LINK_PROTOCOL, createDeepLinkRouter, findDeepLinkInArgv } = require("./main/deep-link");
 const { createNavigationPolicy } = require("./main/navigation-policy");
 const { registerShortcutHandler } = require("./main/keyboard-shortcuts");
 const { createTabManager } = require("./main/tab-manager");
@@ -29,6 +30,8 @@ let config = null;
 let tabManager = null;
 let windowShell = null;
 let isQuitting = false;
+let pendingDeepLink = null;
+let windowReady = false;
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
@@ -45,7 +48,7 @@ function createShellUrl() {
 }
 
 function persistSession({ force = false } = {}) {
-  if (!config || !config.jiraUrl || runtimeOverrides.rawJiraUrl) {
+  if (!config || !config.jiraUrl || !config.spaceId || runtimeOverrides.rawJiraUrl) {
     return;
   }
 
@@ -53,34 +56,149 @@ function persistSession({ force = false } = {}) {
     return;
   }
 
-  workspaceConfig.writeStoredSession(config.jiraUrl, tabManager.serializePersistedState());
+  workspaceConfig.writeSpaceSession(config.spaceId, tabManager.serializePersistedState());
+}
+
+function getSpaceHomeUrl(spaceId) {
+  const space = workspaceConfig.getSpaces().find((entry) => entry.id === spaceId);
+
+  return space ? space.jiraUrl : config ? config.jiraUrl : "";
+}
+
+function getSpacePartition(spaceId) {
+  const space = workspaceConfig.getSpaces().find((entry) => entry.id === spaceId);
+
+  return space ? workspaceConfig.partitionForSpace(space) : null;
+}
+
+function switchSpaceByOffset(offset) {
+  if (runtimeOverrides.rawJiraUrl) return;
+
+  const spaces = workspaceConfig.getSpaces();
+  if (spaces.length < 2) return;
+
+  const currentIndex = spaces.findIndex((space) => space.id === (config ? config.spaceId : null));
+  const nextIndex = ((((currentIndex < 0 ? 0 : currentIndex) + offset) % spaces.length) + spaces.length) % spaces.length;
+
+  switchSpaceById(spaces[nextIndex].id);
+}
+
+function switchSpaceByIndex(index) {
+  if (runtimeOverrides.rawJiraUrl) return;
+
+  const spaces = workspaceConfig.getSpaces();
+  if (index < 0 || index >= spaces.length) return;
+
+  switchSpaceById(spaces[index].id);
+}
+
+function switchSpaceById(spaceId) {
+  if (!workspaceConfig.setActiveSpace(spaceId)) return;
+
+  config = workspaceConfig.loadConfig();
+  hydrateSpace(spaceId, { activate: true });
+  if (windowShell) {
+    windowShell.refreshShell();
+  }
+  broadcastSpacesChanged();
 }
 
 function runShortcutCommand(command) {
-  switch (command) {
-    case "reload-active-tab":
-      tabManager.reloadActiveTab(config ? config.jiraUrl : "");
-      return;
-    case "force-reload-active-tab":
-      tabManager.reloadActiveTab(config ? config.jiraUrl : "", { ignoreCache: true });
-      return;
-    case "new-tab":
-      if (config && config.jiraUrl) {
-        tabManager.createTab(config.jiraUrl, { activate: true, title: "Jira" });
-      }
-      return;
-    case "close-active-tab": {
-      const activeTab = tabManager.getActiveTab();
+  if (command === "reload-active-tab") {
+    tabManager.reloadActiveTab(config ? config.jiraUrl : "");
+    return;
+  }
 
-      if (activeTab && !activeTab.pinned) {
-        tabManager.closeTab(activeTab.id, {
-          getHomeUrl: () => (config ? config.jiraUrl : "")
+  if (command === "force-reload-active-tab") {
+    tabManager.reloadActiveTab(config ? config.jiraUrl : "", { ignoreCache: true });
+    return;
+  }
+
+  if (command === "new-tab") {
+    if (config && config.jiraUrl) {
+      const spaceId = activeSpaceIdForConfig();
+
+      if (spaceId) {
+        tabManager.createTab(config.jiraUrl, {
+          activate: true,
+          title: "Jira",
+          spaceId,
+          partition: partitionForSpaceId(spaceId)
         });
       }
-      return;
     }
-    default:
+
+    return;
   }
+
+  if (command === "close-active-tab") {
+    const activeTab = tabManager.getActiveTab();
+
+    if (activeTab && !activeTab.pinned) {
+      tabManager.closeTab(activeTab.id, {
+        getHomeUrl: (spaceId) => getSpaceHomeUrl(spaceId)
+      });
+    }
+
+    return;
+  }
+
+  if (command === "switch-space-next") {
+    switchSpaceByOffset(1);
+    return;
+  }
+
+  if (command === "switch-space-prev") {
+    switchSpaceByOffset(-1);
+    return;
+  }
+
+  if (command.startsWith("switch-space-index:")) {
+    const index = Number(command.split(":")[1]);
+
+    if (Number.isInteger(index)) {
+      switchSpaceByIndex(index);
+    }
+  }
+}
+
+function syncProtocolRegistration(enabled) {
+  if (!app.isPackaged) {
+    return;
+  }
+
+  if (enabled) {
+    app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL);
+  } else {
+    app.removeAsDefaultProtocolClient(DEEP_LINK_PROTOCOL);
+  }
+}
+
+function handleIncomingDeepLink(rawUrl) {
+  if (!rawUrl) {
+    return;
+  }
+
+  if (!workspaceConfig.readOpenLinksInApp()) {
+    return;
+  }
+
+  if (!windowReady || !tabManager || !config || !config.jiraUrl) {
+    pendingDeepLink = rawUrl;
+    return;
+  }
+
+  deepLinkRouter.route(rawUrl);
+}
+
+function drainPendingDeepLink() {
+  if (!pendingDeepLink) {
+    return;
+  }
+
+  const url = pendingDeepLink;
+  pendingDeepLink = null;
+  handleIncomingDeepLink(url);
 }
 
 const navigationPolicy = createNavigationPolicy({
@@ -93,6 +211,63 @@ const navigationPolicy = createNavigationPolicy({
     if (tabManager) {
       tabManager.createTab(url, { activate: true });
     }
+  }
+});
+
+function findSpaceForDeepLink(targetUrl) {
+  let targetOrigin;
+
+  try {
+    targetOrigin = new URL(targetUrl).origin;
+  } catch {
+    return null;
+  }
+
+  const spaces = workspaceConfig.getSpaces();
+
+  for (const space of spaces) {
+    try {
+      if (new URL(space.jiraUrl).origin === targetOrigin) {
+        return space;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return null;
+}
+
+const deepLinkRouter = createDeepLinkRouter({
+  isAllowedNavigation: (url) => (windowShell ? navigationPolicy.isAllowedNavigation(url) : false),
+  createTab: (url, options) => {
+    if (!tabManager || !config) {
+      return null;
+    }
+
+    const matchedSpace = runtimeOverrides.rawJiraUrl ? null : findSpaceForDeepLink(url);
+    let targetSpaceId = activeSpaceIdForConfig();
+
+    if (matchedSpace && matchedSpace.id !== config.spaceId) {
+      switchSpaceById(matchedSpace.id);
+      targetSpaceId = matchedSpace.id;
+    }
+
+    if (!targetSpaceId) {
+      return null;
+    }
+
+    const tab = tabManager.createTab(url, {
+      ...options,
+      spaceId: targetSpaceId,
+      partition: partitionForSpaceId(targetSpaceId)
+    });
+
+    if (windowShell) {
+      windowShell.focusMainWindow();
+    }
+
+    return tab;
   }
 });
 
@@ -139,18 +314,84 @@ windowShell = createWindowShell({
   showContextMenu: navigationPolicy.handleContextMenu
 });
 
-async function createWindow() {
-  await windowShell.createWindow();
+const RUNTIME_SPACE_ID = "__runtime__";
+const hydratedSpaces = new Set();
 
-  if (config.jiraUrl) {
-    const restoredSession = runtimeOverrides.rawJiraUrl ? null : workspaceConfig.readStoredSession(config.jiraUrl);
+function activeSpaceIdForConfig() {
+  if (!config || !config.jiraUrl) return null;
 
-    if (!tabManager.restorePersistedState(restoredSession)) {
-      tabManager.createTab(config.jiraUrl, { activate: true, title: "Jira" });
+  return config.spaceId || (runtimeOverrides.rawJiraUrl ? RUNTIME_SPACE_ID : null);
+}
+
+function partitionForSpaceId(spaceId) {
+  if (!spaceId || spaceId === RUNTIME_SPACE_ID) return null;
+
+  return getSpacePartition(spaceId);
+}
+
+function hydrateSpace(spaceId, { activate = false } = {}) {
+  if (!spaceId || hydratedSpaces.has(spaceId)) {
+    if (activate) {
+      tabManager.setActiveSpace(spaceId);
+    }
+
+    return;
+  }
+
+  hydratedSpaces.add(spaceId);
+
+  const partition = partitionForSpaceId(spaceId);
+  let targetUrl = "";
+
+  if (spaceId === RUNTIME_SPACE_ID) {
+    targetUrl = config.jiraUrl;
+  } else {
+    const space = workspaceConfig.getSpaces().find((entry) => entry.id === spaceId);
+
+    if (!space) {
+      return;
+    }
+
+    targetUrl = space.jiraUrl;
+
+    const savedSession = workspaceConfig.readSpaceSession(spaceId);
+    const restored = tabManager.restorePersistedState(spaceId, savedSession, { activate, partition });
+
+    if (restored) {
+      if (activate) {
+        tabManager.setActiveSpace(spaceId);
+      }
+
+      return;
     }
   }
 
+  if (!targetUrl) return;
+
+  tabManager.createTab(targetUrl, {
+    activate,
+    title: "Jira",
+    spaceId,
+    partition
+  });
+
+  if (activate) {
+    tabManager.setActiveSpace(spaceId);
+  }
+}
+
+async function createWindow() {
+  await windowShell.createWindow();
+
+  const spaceId = activeSpaceIdForConfig();
+
+  if (spaceId) {
+    hydrateSpace(spaceId, { activate: true });
+  }
+
   windowShell.refreshShell();
+  windowReady = true;
+  drainPendingDeepLink();
 }
 
 ipcMain.handle("shell:get-state", () => tabManager.serializeState(config));
@@ -168,8 +409,10 @@ ipcMain.handle("shell:save-workspace-url", (_event, rawJiraUrl) => {
     workspaceConfig.writeStoredWorkspaceUrl(normalizedUrl);
     config = workspaceConfig.loadConfig();
 
-    if (!tabManager.hasTabs()) {
-      tabManager.createTab(config.jiraUrl, { activate: true, title: "Jira" });
+    const spaceId = activeSpaceIdForConfig();
+
+    if (spaceId && !tabManager.hasTabsForSpace(spaceId)) {
+      hydrateSpace(spaceId, { activate: true });
     } else {
       windowShell.refreshShell();
     }
@@ -192,12 +435,19 @@ ipcMain.handle("shell:save-workspace-url", (_event, rawJiraUrl) => {
 });
 
 ipcMain.on("shell:new-tab", (_event, targetUrl) => {
-  if (!config.jiraUrl) {
+  const spaceId = activeSpaceIdForConfig();
+
+  if (!config.jiraUrl || !spaceId) {
     windowShell.sendState();
     return;
   }
 
-  tabManager.createTab(targetUrl || config.jiraUrl, { activate: true, title: "Jira" });
+  tabManager.createTab(targetUrl || config.jiraUrl, {
+    activate: true,
+    title: "Jira",
+    spaceId,
+    partition: partitionForSpaceId(spaceId)
+  });
 });
 
 ipcMain.on("shell:switch-tab", (_event, tabId) => {
@@ -206,12 +456,16 @@ ipcMain.on("shell:switch-tab", (_event, tabId) => {
 
 ipcMain.on("shell:close-tab", (_event, tabId) => {
   tabManager.closeTab(tabId, {
-    getHomeUrl: () => config.jiraUrl
+    getHomeUrl: (spaceId) => getSpaceHomeUrl(spaceId)
   });
 });
 
 ipcMain.on("shell:toggle-pin-tab", (_event, tabId) => {
   tabManager.togglePinTab(tabId);
+});
+
+ipcMain.on("shell:reset-pinned-tab", (_event, tabId) => {
+  tabManager.resetPinnedTab(tabId);
 });
 
 ipcMain.on("shell:retry-active-tab", () => {
@@ -275,8 +529,169 @@ ipcMain.handle("shell:check-update", () => {
   return checkForUpdates(app.getVersion());
 });
 
+function serializeSpacesPayload() {
+  const activeSpaceId = tabManager ? tabManager.getActiveSpaceId() : null;
+  const spaces = workspaceConfig.getSpaces().map((space) => ({
+    id: space.id,
+    name: space.name,
+    accent: space.accent,
+    icon: space.icon,
+    jiraUrl: space.jiraUrl
+  }));
+
+  return {
+    activeSpaceId,
+    spaces,
+    palette: workspaceConfig.ACCENT_PALETTE,
+    runtimeOverride: !!runtimeOverrides.rawJiraUrl
+  };
+}
+
+function broadcastSpacesChanged() {
+  const mainWindow = windowShell ? windowShell.getMainWindow() : null;
+
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  mainWindow.webContents.send("shell:spaces-changed", serializeSpacesPayload());
+}
+
+ipcMain.handle("shell:list-spaces", () => serializeSpacesPayload());
+
+ipcMain.handle("shell:switch-space", (_event, spaceId) => {
+  if (runtimeOverrides.rawJiraUrl) {
+    return { ok: false, error: "Cannot switch spaces while JIRA_URL/--jira-url is active." };
+  }
+
+  if (!workspaceConfig.setActiveSpace(spaceId)) {
+    return { ok: false, error: "Unknown space." };
+  }
+
+  config = workspaceConfig.loadConfig();
+  hydrateSpace(spaceId, { activate: true });
+  windowShell.refreshShell();
+  broadcastSpacesChanged();
+
+  return { ok: true, ...serializeSpacesPayload() };
+});
+
+ipcMain.handle("shell:add-space", (_event, input) => {
+  if (runtimeOverrides.rawJiraUrl) {
+    return { ok: false, error: "Cannot add spaces while JIRA_URL/--jira-url is active." };
+  }
+
+  try {
+    const space = workspaceConfig.addSpace(input || {});
+    config = workspaceConfig.loadConfig();
+    broadcastSpacesChanged();
+
+    return { ok: true, space, ...serializeSpacesPayload() };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+
+ipcMain.handle("shell:update-space", (_event, input) => {
+  if (!input || typeof input.id !== "string") {
+    return { ok: false, error: "Missing space id." };
+  }
+
+  try {
+    const space = workspaceConfig.updateSpace(input.id, input.changes || {});
+
+    if (!space) {
+      return { ok: false, error: "Unknown space." };
+    }
+
+    config = workspaceConfig.loadConfig();
+    windowShell.refreshShell();
+    broadcastSpacesChanged();
+
+    return { ok: true, space, ...serializeSpacesPayload() };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+
+ipcMain.handle("shell:delete-space", async (_event, spaceId) => {
+  if (runtimeOverrides.rawJiraUrl) {
+    return { ok: false, error: "Cannot delete spaces while JIRA_URL/--jira-url is active." };
+  }
+
+  const spaces = workspaceConfig.getSpaces();
+  const target = spaces.find((space) => space.id === spaceId);
+
+  if (!target) {
+    return { ok: false, error: "Unknown space." };
+  }
+
+  if (spaces.length <= 1) {
+    return { ok: false, error: "Cannot remove the last remaining space." };
+  }
+
+  tabManager.closeSpaceTabs(spaceId);
+  hydratedSpaces.delete(spaceId);
+
+  const partition = workspaceConfig.partitionForSpace(target);
+
+  if (partition) {
+    try {
+      await session.fromPartition(partition).clearStorageData();
+    } catch (error) {
+      console.warn("Unable to clear partition storage", error);
+    }
+  }
+
+  workspaceConfig.removeSpace(spaceId);
+  config = workspaceConfig.loadConfig();
+
+  const nextActive = activeSpaceIdForConfig();
+
+  if (nextActive) {
+    hydrateSpace(nextActive, { activate: true });
+  }
+
+  windowShell.refreshShell();
+  broadcastSpacesChanged();
+
+  return { ok: true, ...serializeSpacesPayload() };
+});
+
+ipcMain.handle("shell:get-deep-link-setting", () => ({
+  enabled: workspaceConfig.readOpenLinksInApp(),
+  supported: app.isPackaged
+}));
+
+ipcMain.handle("shell:set-deep-link-setting", (_event, enabled) => {
+  const next = !!enabled;
+
+  workspaceConfig.writeOpenLinksInApp(next);
+  syncProtocolRegistration(next);
+
+  if (next) {
+    drainPendingDeepLink();
+  }
+
+  return {
+    ok: true,
+    enabled: next,
+    supported: app.isPackaged
+  };
+});
+
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  handleIncomingDeepLink(url);
+});
+
+const coldStartDeepLink = findDeepLinkInArgv(process.argv);
+
+if (coldStartDeepLink) {
+  pendingDeepLink = coldStartDeepLink;
+}
+
 app.whenReady().then(() => {
   config = workspaceConfig.loadConfig();
+  syncProtocolRegistration(workspaceConfig.readOpenLinksInApp());
   void createWindow();
 
   app.on("activate", () => {
@@ -286,18 +701,22 @@ app.whenReady().then(() => {
   });
 });
 
-app.on("second-instance", () => {
+app.on("second-instance", (_event, argv) => {
   const mainWindow = windowShell ? windowShell.getMainWindow() : null;
 
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+
+    mainWindow.focus();
   }
 
-  if (mainWindow.isMinimized()) {
-    mainWindow.restore();
-  }
+  const incoming = findDeepLinkInArgv(argv);
 
-  mainWindow.focus();
+  if (incoming) {
+    handleIncomingDeepLink(incoming);
+  }
 });
 
 app.on("before-quit", () => {

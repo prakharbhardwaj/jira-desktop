@@ -1,4 +1,19 @@
-const DEFAULT_ALLOWED_HOST_SUFFIXES = [".atlassian.net", ".atlassian.com", ".jira.com"];
+const DEFAULT_ALLOWED_HOST_SUFFIXES = [
+  ".atlassian.net",
+  ".atlassian.com",
+  ".jira.com",
+  // Common identity providers used for Atlassian SSO. Without these, the
+  // SAML/OIDC redirect lands in the external browser and the response
+  // cannot make it back into the app's session.
+  ".okta.com",
+  ".oktapreview.com",
+  ".onelogin.com",
+  ".pingidentity.com",
+  ".microsoftonline.com",
+  ".auth0.com"
+];
+
+const DEFAULT_ALLOWED_HOSTS = ["accounts.google.com", "login.microsoftonline.com"];
 
 function createNavigationPolicy({ Menu, clipboard, shell, getConfig, getMainWindow, onOpenAllowedLink }) {
   const configuredSessions = new WeakSet();
@@ -66,11 +81,7 @@ function createNavigationPolicy({ Menu, clipboard, shell, getConfig, getMainWind
 
     const template = [];
     const hasEditableActions =
-      params.isEditable ||
-      params.editFlags.canCopy ||
-      params.editFlags.canPaste ||
-      params.editFlags.canCut ||
-      params.editFlags.canSelectAll;
+      params.isEditable || params.editFlags.canCopy || params.editFlags.canPaste || params.editFlags.canCut || params.editFlags.canSelectAll;
 
     if (params.linkURL) {
       if (isAllowedNavigation(params.linkURL)) {
