@@ -13,7 +13,10 @@ const DEFAULT_ALLOWED_HOST_SUFFIXES = [
   ".auth0.com",
   ".github.com",
   ".gitlab.com",
-  ".bitbucket.org"
+  ".bitbucket.org",
+  // Jira Marketplace apps that render their own UI / OAuth popups
+  // (e.g. the "Issue Checklist" app served from checklist.appbox.ai).
+  ".appbox.ai"
 ];
 
 const DEFAULT_ALLOWED_HOSTS = ["accounts.google.com", "login.microsoftonline.com"];
@@ -38,7 +41,14 @@ function createNavigationPolicy({ Menu, clipboard, shell, getConfig, getMainWind
       return true;
     }
 
-    return DEFAULT_ALLOWED_HOST_SUFFIXES.some((suffix) => normalizedHost.endsWith(suffix));
+    // Match both subdomains (".github.com") and the apex itself ("github.com").
+    // GitHub/GitLab/Bitbucket OAuth flows (used by Jira's "Create branch") land
+    // on the apex domain, which would otherwise fail the endsWith suffix test.
+    return DEFAULT_ALLOWED_HOST_SUFFIXES.some((suffix) => {
+      const apex = suffix.startsWith(".") ? suffix.slice(1) : suffix;
+
+      return normalizedHost === apex || normalizedHost.endsWith(suffix);
+    });
   }
 
   function isAllowedNavigation(targetUrl) {

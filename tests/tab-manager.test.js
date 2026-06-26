@@ -49,6 +49,7 @@ function createFakeEvent() {
 function createHarness() {
   const externalOpens = [];
   const createdPartitions = [];
+  const configuredSessions = [];
 
   const tabManager = createTabManager({
     createView: ({ webPreferences }) => {
@@ -58,7 +59,7 @@ function createHarness() {
         setBackgroundColor() {}
       };
     },
-    configureSession: () => {},
+    configureSession: (session) => configuredSessions.push(session),
     isAllowedNavigation: (targetUrl) => {
       try {
         return new URL(targetUrl).protocol === "https:";
@@ -72,7 +73,7 @@ function createHarness() {
     showContextMenu: () => {}
   });
 
-  return { tabManager, externalOpens, createdPartitions };
+  return { tabManager, externalOpens, createdPartitions, configuredSessions };
 }
 
 function runTabManagerTests() {
@@ -245,6 +246,77 @@ function runTabManagerTests() {
     pinnedTab.view.webContents.emit("will-navigate", event, "http://bad/");
     assert.strictEqual(event.defaultPrevented, true);
     assert.ok(externalOpens.includes("http://bad/"));
+  }
+
+  // Popup (window.open with features → "new-window") to an allowed host opens a
+  // child window with security defaults intact and the opener's partition.
+  {
+    const { tabManager } = createHarness();
+    const tab = tabManager.createTab("https://example.atlassian.net/browse/ABC-1", {
+      spaceId: "s1",
+      partition: "persist:workspace-s1"
+    });
+    const result = tab.view.webContents._windowOpenHandler({
+      url: "https://github.com/login/oauth/authorize",
+      disposition: "new-window"
+    });
+
+    assert.strictEqual(result.action, "allow");
+    const prefs = result.overrideBrowserWindowOptions.webPreferences;
+    assert.strictEqual(prefs.partition, "persist:workspace-s1");
+    assert.strictEqual(prefs.contextIsolation, true);
+    assert.strictEqual(prefs.sandbox, true);
+    assert.strictEqual(prefs.nodeIntegration, false);
+  }
+
+  // Popup to a disallowed host is denied and routed externally (no popup window).
+  {
+    const { tabManager, externalOpens } = createHarness();
+    const tab = tabManager.createTab("https://example.atlassian.net/", { spaceId: "s1" });
+    const result = tab.view.webContents._windowOpenHandler({
+      url: "http://evil.example.com/",
+      disposition: "new-window"
+    });
+
+    assert.strictEqual(result.action, "deny");
+    assert.deepStrictEqual(externalOpens, ["http://evil.example.com/"]);
+  }
+
+  // target=_blank link (foreground-tab) to an allowed host opens a new in-app tab.
+  {
+    const { tabManager } = createHarness();
+    const tab = tabManager.createTab("https://example.atlassian.net/", { spaceId: "s1" });
+    const before = tabManager.serializeState({}).tabs.length;
+    const result = tab.view.webContents._windowOpenHandler({
+      url: "https://example.atlassian.net/secondary",
+      disposition: "foreground-tab"
+    });
+
+    assert.strictEqual(result.action, "deny");
+    assert.strictEqual(tabManager.serializeState({}).tabs.length, before + 1);
+  }
+
+  // Child windows created by an allowed popup stay within the navigation policy.
+  {
+    const { tabManager, externalOpens, configuredSessions } = createHarness();
+    const tab = tabManager.createTab("https://example.atlassian.net/", { spaceId: "s1" });
+    const childContents = createFakeWebContents();
+    const sessionsBefore = configuredSessions.length;
+
+    tab.view.webContents.emit("did-create-window", { webContents: childContents });
+    assert.strictEqual(configuredSessions.length, sessionsBefore + 1);
+
+    const allowChild = childContents._windowOpenHandler({ url: "https://example.atlassian.net/x" });
+    assert.strictEqual(allowChild.action, "allow");
+
+    const denyChild = childContents._windowOpenHandler({ url: "http://bad.example.com/" });
+    assert.strictEqual(denyChild.action, "deny");
+    assert.ok(externalOpens.includes("http://bad.example.com/"));
+
+    const event = createFakeEvent();
+    childContents.emit("will-navigate", event, "http://bad.example.com/nav");
+    assert.strictEqual(event.defaultPrevented, true);
+    assert.ok(externalOpens.includes("http://bad.example.com/nav"));
   }
 }
 

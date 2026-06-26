@@ -57,8 +57,14 @@ function runNavigationPolicyTests() {
   assert.strictEqual(policy.isAllowedNavigation("https://example.atlassian.net/browse/ABC-1"), true);
   assert.strictEqual(policy.isAllowedNavigation("https://auth.example.com/sso"), true);
   assert.strictEqual(policy.isAllowedNavigation("https://id.atlassian.com/login"), true);
+  // Apex domains of allowed suffixes (GitHub OAuth lands on github.com itself).
+  assert.strictEqual(policy.isAllowedNavigation("https://github.com/login/oauth/authorize"), true);
+  assert.strictEqual(policy.isAllowedNavigation("https://api.github.com/user"), true);
+  // Jira Marketplace app served from a subdomain.
+  assert.strictEqual(policy.isAllowedNavigation("https://checklist.appbox.ai/#/ticket/checklist"), true);
   assert.strictEqual(policy.isAllowedNavigation("http://example.atlassian.net/browse/ABC-1"), false);
   assert.strictEqual(policy.isAllowedNavigation("https://example.com"), false);
+  assert.strictEqual(policy.isAllowedNavigation("https://notgithub.com"), false);
 
   const session = createSessionMock();
 

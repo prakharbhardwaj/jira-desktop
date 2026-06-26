@@ -197,14 +197,52 @@ function createTabManager({
       showContextMenu(webContents, params);
     });
 
-    webContents.setWindowOpenHandler(({ url }) => {
-      if (isAllowedNavigation(url)) {
-        createTab(url, { activate: true, spaceId: tab.spaceId, partition: tab.partition });
-      } else {
+    webContents.setWindowOpenHandler(({ url, disposition }) => {
+      if (!isAllowedNavigation(url)) {
         onExternalOpen(url);
+        return { action: "deny" };
       }
 
+      // Real popups (window.open with window features → "new-window") must open
+      // as a child window so the window.opener relationship survives. OAuth flows
+      // such as Jira's "Create branch" GitHub login post their result back to the
+      // opener and call window.close(); a separate tab has no opener and would
+      // hang, and denying makes window.open() return null ("popup blocked").
+      if (disposition === "new-window") {
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: {
+            autoHideMenuBar: true,
+            webPreferences: tab.partition ? { ...BASE_WEB_PREFERENCES, partition: tab.partition } : { ...BASE_WEB_PREFERENCES }
+          }
+        };
+      }
+
+      // target=_blank / modified-click links open as a new in-app tab.
+      createTab(url, { activate: true, spaceId: tab.spaceId, partition: tab.partition });
       return { action: "deny" };
+    });
+
+    webContents.on("did-create-window", (childWindow) => {
+      const childContents = childWindow.webContents;
+
+      configureSession(childContents.session);
+
+      childContents.setWindowOpenHandler(({ url }) => {
+        if (isAllowedNavigation(url)) {
+          return { action: "allow" };
+        }
+
+        onExternalOpen(url);
+        return { action: "deny" };
+      });
+
+      childContents.on("will-navigate", (event, url) => {
+        if (!isAllowedNavigation(url)) {
+          event.preventDefault();
+          onExternalOpen(url);
+        }
+      });
     });
 
     webContents.on("will-navigate", (event, url) => {
