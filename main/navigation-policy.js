@@ -10,7 +10,10 @@ const DEFAULT_ALLOWED_HOST_SUFFIXES = [
   ".onelogin.com",
   ".pingidentity.com",
   ".microsoftonline.com",
-  ".auth0.com"
+  ".auth0.com",
+  ".github.com",
+  ".gitlab.com",
+  ".bitbucket.org"
 ];
 
 const DEFAULT_ALLOWED_HOSTS = ["accounts.google.com", "login.microsoftonline.com"];
