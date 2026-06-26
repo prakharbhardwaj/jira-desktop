@@ -1,6 +1,6 @@
 const assert = require("assert");
 
-const { getShortcutCommand } = require("../main/keyboard-shortcuts");
+const { getShortcutCommand, isZoomShortcut } = require("../main/keyboard-shortcuts");
 
 function runKeyboardShortcutTests() {
   assert.strictEqual(getShortcutCommand({ type: "keyDown", key: "r", control: true }), "reload-active-tab");
@@ -27,6 +27,18 @@ function runKeyboardShortcutTests() {
     getShortcutCommand({ type: "keyDown", key: "[", control: true, shift: true }),
     "switch-space-prev"
   );
+
+  // Zoom accelerators are recognized so the shell renderer can suppress them.
+  assert.strictEqual(isZoomShortcut({ type: "keyDown", key: "=", meta: true }), true);
+  assert.strictEqual(isZoomShortcut({ type: "keyDown", key: "+", meta: true }), true);
+  assert.strictEqual(isZoomShortcut({ type: "keyDown", key: "-", control: true }), true);
+  assert.strictEqual(isZoomShortcut({ type: "keyDown", key: "_", control: true }), true);
+  assert.strictEqual(isZoomShortcut({ type: "keyDown", key: "0", meta: true }), true);
+  // Plain or non-modifier presses must not be treated as zoom.
+  assert.strictEqual(isZoomShortcut({ type: "keyDown", key: "-" }), false);
+  assert.strictEqual(isZoomShortcut({ type: "char", key: "0", meta: true }), false);
+  assert.strictEqual(isZoomShortcut({ type: "keyDown", key: "1", meta: true }), false);
+  assert.strictEqual(isZoomShortcut({ type: "char", key: "=", meta: true }), false);
 }
 
 module.exports = {

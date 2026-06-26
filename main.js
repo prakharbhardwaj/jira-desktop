@@ -16,7 +16,7 @@ if (!app.isPackaged) {
 
 const { SUPPORTED_PROTOCOL: DEEP_LINK_PROTOCOL, createDeepLinkRouter, findDeepLinkInArgv } = require("./main/deep-link");
 const { createNavigationPolicy } = require("./main/navigation-policy");
-const { registerShortcutHandler } = require("./main/keyboard-shortcuts");
+const { isZoomShortcut, registerShortcutHandler } = require("./main/keyboard-shortcuts");
 const { createTabManager } = require("./main/tab-manager");
 const { getUpdatePayload } = require("./main/update-check");
 const { createWindowShell } = require("./main/window-shell");
@@ -305,6 +305,7 @@ windowShell = createWindowShell({
   getActiveTab: tabManager.getActiveTab,
   getConfig,
   iconPath: path.join(__dirname, "build/icon.png"),
+  isZoomShortcut,
   onClosed: () => {
     tabManager.cleanup();
   },

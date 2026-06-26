@@ -44,6 +44,18 @@ function getShortcutCommand(input = {}) {
   return null;
 }
 
+// Cmd/Ctrl with +, =, -, _, or 0 are Chromium's built-in page-zoom accelerators.
+// The shell renderer (sidebar) should stay at a fixed zoom; only Jira views zoom.
+function isZoomShortcut(input = {}) {
+  if (input.type !== "keyDown" || !isCommandOrControl(input)) {
+    return false;
+  }
+
+  const key = typeof input.key === "string" ? input.key.toLowerCase() : "";
+
+  return key === "+" || key === "=" || key === "-" || key === "_" || key === "0";
+}
+
 function registerShortcutHandler(webContents, runCommand) {
   webContents.on("before-input-event", (event, input) => {
     const command = getShortcutCommand(input);
@@ -59,5 +71,6 @@ function registerShortcutHandler(webContents, runCommand) {
 
 module.exports = {
   getShortcutCommand,
+  isZoomShortcut,
   registerShortcutHandler
 };

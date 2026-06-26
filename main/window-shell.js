@@ -13,6 +13,7 @@ function createWindowShell({
   getActiveTab,
   getConfig,
   iconPath,
+  isZoomShortcut,
   onClosed,
   preloadPath,
   registerShortcutHandler,
@@ -137,6 +138,33 @@ function createWindowShell({
     detachAttachedView();
   }
 
+  // Pin the shell renderer (sidebar/setup/overlay UI) at 100% zoom. The Jira
+  // WebContentsView is positioned at a fixed SIDEBAR_WIDTH offset in device
+  // pixels, so letting the renderer zoom desynchronizes the sidebar from that
+  // offset — shrinking it leaves a gap that exposes the window background.
+  // Zoom remains available inside the Jira views, which manage it themselves.
+  function lockShellZoom(webContents) {
+    const resetZoom = () => {
+      if (webContents.isDestroyed()) {
+        return;
+      }
+
+      if (webContents.getZoomLevel() !== 0) {
+        webContents.setZoomLevel(0);
+      }
+    };
+
+    webContents.setVisualZoomLevelLimits(1, 1);
+    webContents.on("did-finish-load", resetZoom);
+    webContents.on("zoom-changed", resetZoom);
+    webContents.on("before-input-event", (event, input) => {
+      if (typeof isZoomShortcut === "function" && isZoomShortcut(input)) {
+        event.preventDefault();
+        resetZoom();
+      }
+    });
+  }
+
   async function createWindow() {
     mainWindow = new BrowserWindow({
       width: 1366,
@@ -158,6 +186,7 @@ function createWindowShell({
 
     configureSession(mainWindow.webContents.session);
     registerShortcutHandler(mainWindow.webContents);
+    lockShellZoom(mainWindow.webContents);
     mainWindow.webContents.on("context-menu", (_event, params) => {
       showContextMenu(mainWindow.webContents, params);
     });
