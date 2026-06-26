@@ -15,7 +15,7 @@ Download the latest packaged builds from [GitHub Releases](https://github.com/pr
 
 - Multi-workspace "Spaces" with fully isolated cookies per space
 - Multi-tab Jira browsing inside a single desktop window
-- Pinned tabs and session restore for saved workspaces
+- Pinned tabs and per-space session restore for saved workspaces
 - Keyboard shortcuts for new tab, close tab, and reload actions
 - Theme toggle, lockable sidebar, and an in-app update banner
 - Optional `jira-desktop://` deep-link handler so compatible Jira links from other apps open in Jira Desktop
@@ -115,6 +115,7 @@ Plain `https://...` Jira URLs are not registered at the OS level, so this settin
 - The setting lives in the sidebar header (the link icon) and only appears in packaged builds, so dev runs do not pollute your OS defaults
 - The toggle is off by default — turn it on when you want links from Slack, email, or browser bookmarklets to open in Jira Desktop
 - When the app is not running, launching it via a `jira-desktop://` URL opens the link after the main window finishes loading
+- When multiple spaces are configured, incoming deep links switch to the space whose Jira origin matches the target URL before opening the tab
 - The OS-level registration is removed when you turn the toggle off
 
 ## Spaces
@@ -125,8 +126,8 @@ Jira Desktop supports multiple Jira accounts in one app. Each workspace has its 
 - At the bottom of the sidebar, a row of colored dots represents every workspace — click a dot to switch. The `+` at the right adds a new workspace (name, Jira URL, accent color, optional emoji).
 - Two-finger horizontal swipe on a trackpad over the tab list also cycles between workspaces (previous / next with wrap).
 - Right-click any dot to edit or delete the workspace. Deleting signs you out of that Jira account on this device and purges its partition data; the last remaining workspace cannot be deleted.
-- v1.x users auto-migrate on first v2 launch: the existing workspace becomes your first entry and keeps its cookies, so you stay logged in through the upgrade.
-- When `JIRA_URL` or `--jira-url` is set, workspaces are disabled for that launch and the runtime URL becomes the single ephemeral workspace — the `+` button is hidden.
+- v1.x users auto-migrate on first v2 launch: the existing workspace becomes your first entry, keeps the default Electron partition, and preserves existing cookies so you stay logged in through the upgrade.
+- When `JIRA_URL` or `--jira-url` is set, Jira Desktop runs as a single ephemeral workspace for that launch. Space switching and space management are disabled, and saved sessions are not restored.
 
 ## Keyboard Shortcuts
 
@@ -148,8 +149,13 @@ The sidebar also includes a lock toggle and a light/dark theme toggle in the she
 yarn start
 yarn test:unit
 yarn test:smoke
+yarn test:smoke-partition
+yarn test:smoke-spaces
 yarn package:dir
 yarn dist
+yarn release-mac
+yarn release-mac-ci
+yarn release-win
 ```
 
 ## Packaging
